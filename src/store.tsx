@@ -208,7 +208,10 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
     for (const n of targets) merge('notifications', [await db.update<AppNotification>('notifications', n.id, { read: true })]);
   }, [data.notifications, merge]);
 
+  const paying = useRef(new Set<string>());
   const markPaid = useCallback(async (tx: Transaction) => {
+    if (paying.current.has(tx.id)) return;
+    paying.current.add(tx.id);
     try {
       const updated = await db.update<Transaction>('transactions', tx.id, { status: 'paid' });
       merge('transactions', [updated]);
@@ -219,6 +222,8 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
       });
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Não consegui atualizar.');
+    } finally {
+      paying.current.delete(tx.id);
     }
   }, [merge, flashFor, toast]);
 

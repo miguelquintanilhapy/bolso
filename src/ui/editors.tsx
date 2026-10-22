@@ -109,6 +109,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
   const [error, setError] = useState('');
   const [shake, setShake] = useState(0);
   const [busy, setBusy] = useState(false);
+  const sending = useRef(false); // trava contra duplo toque (o estado `busy` só atualiza no próximo render)
 
   const account = s.accounts.find((a) => a.id === accountId);
   const toAccount = s.accounts.find((a) => a.id === toId);
@@ -153,10 +154,11 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
   };
 
   const submit = async () => {
-    if (busy) return;
+    if (sending.current) return;
     if (!value) return fail('Informe um valor maior que zero.');
     if (!accountId) return fail('Crie uma conta primeiro (aba Mais → Contas e cartões).');
     if (kind === 'transfer' && (!toId || toId === accountId)) return fail('Escolha uma conta de destino diferente da origem.');
+    sending.current = true;
     setBusy(true);
     setError('');
     try {
@@ -187,17 +189,20 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
       onClose();
     } catch (e) {
       fail(e instanceof Error ? e.message : 'Não consegui salvar.');
+      sending.current = false;
       setBusy(false);
     }
   };
 
   const del = async () => {
-    if (!existing) return;
+    if (!existing || sending.current) return;
+    sending.current = true;
     onClose();
     await s.removeWithUndo('transactions', [existing], 'Lançamento apagado');
   };
   const delGroup = async () => {
-    if (!existing?.installment_group) return;
+    if (!existing?.installment_group || sending.current) return;
+    sending.current = true;
     const group = s.transactions.filter((t) => t.installment_group === existing.installment_group);
     onClose();
     await s.removeWithUndo('transactions', group, `${group.length} parcelas apagadas`);
@@ -342,13 +347,16 @@ function AccountEditor({ id, onClose }: { id?: string; onClose: () => void }) {
   const [isDefault, setIsDefault] = useState(existing?.is_default ?? !s.accounts.some((a) => a.is_default));
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const sending = useRef(false);
 
   const submit = async () => {
+    if (sending.current) return;
     if (!name.trim()) return setError('Dê um nome para a conta.');
     const init = initial.trim() ? (initial.trim().startsWith('-') ? -(parseAmount(initial.trim().slice(1)) ?? NaN) : parseAmount(initial)) : 0;
     if (init === null || Number.isNaN(init)) return setError('Saldo inicial inválido.');
     const c = Number(closing), d = Number(due);
     if (kind === 'credit' && !(c >= 1 && c <= 31 && d >= 1 && d <= 31)) return setError('Informe dias de fechamento e vencimento entre 1 e 31.');
+    sending.current = true;
     setBusy(true);
     try {
       if (isDefault) for (const a of s.accounts.filter((a) => a.is_default && a.id !== existing?.id)) await s.save<Account>('accounts', { id: a.id, is_default: false });
@@ -362,6 +370,7 @@ function AccountEditor({ id, onClose }: { id?: string; onClose: () => void }) {
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não consegui salvar.');
+      sending.current = false;
       setBusy(false);
     }
   };
@@ -437,11 +446,14 @@ function CategoryEditor({ id, kind: initKind, onClose }: { id?: string; kind?: '
   const [keywords, setKeywords] = useState((existing?.keywords ?? []).join(', '));
   const [budget, setBudget] = useState(existing?.budget_limit ? String(existing.budget_limit).replace('.', ',') : '');
   const [error, setError] = useState('');
+  const sending = useRef(false);
 
   const submit = async () => {
+    if (sending.current) return;
     if (!name.trim()) return setError('Dê um nome para a categoria.');
     const limit = budget.trim() ? parseAmount(budget) : null;
     if (budget.trim() && limit === null) return setError('Limite inválido.');
+    sending.current = true;
     try {
       await s.save<Category>('categories', {
         ...(existing ? { id: existing.id } : {}), name: name.trim(), kind, icon, color,
@@ -451,6 +463,7 @@ function CategoryEditor({ id, kind: initKind, onClose }: { id?: string; kind?: '
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não consegui salvar.');
+      sending.current = false;
     }
   };
   const del = async () => {
@@ -511,8 +524,10 @@ function RecurrenceEditor({ id, onClose }: { id?: string; onClose: () => void })
   const [active, setActive] = useState(existing?.active ?? true);
   const [error, setError] = useState('');
   const cats = s.categories.filter((c) => !c.archived && c.kind === kind);
+  const sending = useRef(false);
 
   const submit = async () => {
+    if (sending.current) return;
     const value = parseAmount(amount);
     const d = Number(day);
     if (!description.trim()) return setError('Dê um nome (ex.: Aluguel, Netflix).');
@@ -520,6 +535,7 @@ function RecurrenceEditor({ id, onClose }: { id?: string; onClose: () => void })
     if (!accountId) return setError('Crie uma conta primeiro.');
     if (!(d >= 1 && d <= 31)) return setError('Dia do mês entre 1 e 31.');
     if (end && end < start) return setError('O mês final não pode ser antes do inicial.');
+    sending.current = true;
     try {
       const saved = await s.save<Recurrence>('recurrences', {
         ...(existing ? { id: existing.id } : { last_generated_month: null }), description: description.trim(), amount: value, kind,
@@ -531,6 +547,7 @@ function RecurrenceEditor({ id, onClose }: { id?: string; onClose: () => void })
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não consegui salvar.');
+      sending.current = false;
     }
   };
   const del = async () => {
@@ -583,15 +600,19 @@ function SnapshotEditor({ accountId, onClose }: { accountId: string; onClose: ()
   const [balance, setBalance] = useState('');
   const [date, setDate] = useState(s.today);
   const [error, setError] = useState('');
+  const sending = useRef(false);
   const submit = async () => {
+    if (sending.current) return;
     const v = parseAmount(balance) ?? (balance.trim() === '0' ? 0 : null);
     if (v === null) return setError('Informe o saldo atual.');
+    sending.current = true;
     try {
       await s.insertMany<Snapshot>('investment_snapshots', [{ account_id: accountId, date, balance: v }]);
       s.toast('Saldo atualizado');
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não consegui salvar.');
+      sending.current = false;
     }
   };
   return (
