@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['favicon.ico', 'favicon-32.png', 'favicon-64.png', 'apple-touch-icon.png', 'logo.png'],
       manifest: {
         name: 'Bolso',
         short_name: 'Bolso',
@@ -21,7 +21,7 @@ export default defineConfig({
         theme_color: '#f2f3f5',
         icons: [
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },

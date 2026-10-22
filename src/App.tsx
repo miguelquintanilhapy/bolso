@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { db } from './data';
+import { configError, db } from './data';
 import type { SessionUser } from './data/api';
 import { StoreProvider } from './store';
 import { PrivacyProvider } from './ui/privacy';
@@ -24,7 +24,16 @@ export default function App() {
     return db.onAuthChange(setUser);
   }, []);
 
-  if (user === undefined) return <div className="splash"><div className="splash-logo">Bolso</div></div>;
+  if (configError) return (
+    <div className="splash">
+      <div className="splash-error">
+        <h2>Configuração do Supabase incorreta</h2>
+        <p>{configError}</p>
+        <p className="muted">Corrija em Vercel → Settings → Environment Variables e faça um Redeploy.</p>
+      </div>
+    </div>
+  );
+  if (user === undefined) return <div className="splash"><img className="brand-logo" src="/logo.png" alt="Bolso" /></div>;
   if (!user) return <Login />;
 
   return (
