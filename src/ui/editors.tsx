@@ -1,0 +1,523 @@
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { Trash2 } from 'lucide-react';
+import { useStore } from '../store';
+import { Sheet } from './Sheet';
+import { Segmented, Switch } from './common';
+import { CATEGORY_ICONS, CategoryIcon, COLORS } from './icons';
+import type { Account, AccountKind, Category, NewTransaction, Recurrence, Snapshot, Transaction, TxKind } from '../lib/types';
+import { buildInstallments, invoiceMonths, buildInvoice } from '../lib/finance';
+import { formatBRL, parseAmount } from '../lib/money';
+import { monthLabel, monthOf } from '../lib/dates';
+import { norm } from '../lib/quickEntry';
+
+export type TxInit = Partial<{
+  kind: TxKind; amount: number; description: string; category_id: string | null; account_id: string; to_account_id: string | null;
+  date: string; status: 'paid' | 'pending'; installments: number; tags: string[]; invoice_ref: string | null; keyword: string | null;
+}>;
+
+type Open =
+  | { type: 'tx'; id?: string; init?: TxInit }
+  | { type: 'account'; id?: string }
+  | { type: 'category'; id?: string; kind?: 'expense' | 'income' }
+  | { type: 'recurrence'; id?: string }
+  | { type: 'snapshot'; accountId: string };
+
+interface EditorApi {
+  newTx: (init?: TxInit) => void;
+  editTx: (id: string) => void;
+  openAccount: (id?: string) => void;
+  openCategory: (id?: string, kind?: 'expense' | 'income') => void;
+  openRecurrence: (id?: string) => void;
+  openSnapshot: (accountId: string) => void;
+}
+const Ctx = createContext<EditorApi | null>(null);
+export const useEditor = () => {
+  const c = useContext(Ctx);
+  if (!c) throw new Error('useEditor fora do provider');
+  return c;
+};
+
+export function EditorProvider({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState<Open | null>(null);
+  const close = useCallback(() => setOpen(null), []);
+  const api = useMemo<EditorApi>(() => ({
+    newTx: (init) => setOpen({ type: 'tx', init }),
+    editTx: (id) => setOpen({ type: 'tx', id }),
+    openAccount: (id) => setOpen({ type: 'account', id }),
+    openCategory: (id, kind) => setOpen({ type: 'category', id, kind }),
+    openRecurrence: (id) => setOpen({ type: 'recurrence', id }),
+    openSnapshot: (accountId) => setOpen({ type: 'snapshot', accountId }),
+  }), []);
+  return (
+    <Ctx.Provider value={api}>
+      {children}
+      {open?.type === 'tx' && <TxEditor key={open.id ?? 'new'} id={open.id} init={open.init} onClose={close} />}
+      {open?.type === 'account' && <AccountEditor id={open.id} onClose={close} />}
+      {open?.type === 'category' && <CategoryEditor id={open.id} kind={open.kind} onClose={close} />}
+      {open?.type === 'recurrence' && <RecurrenceEditor id={open.id} onClose={close} />}
+      {open?.type === 'snapshot' && <SnapshotEditor accountId={open.accountId} onClose={close} />}
+    </Ctx.Provider>
+  );
+}
+
+const Field = ({ label, children }: { label: string; children: ReactNode }) => (
+  <div className="field"><span className="lbl">{label}</span>{children}</div>
+);
+
+const defaultAccount = (accounts: Account[]) =>
+  accounts.find((a) => a.is_default && !a.archived) ?? accounts.find((a) => a.kind === 'checking' && !a.archived) ?? accounts.find((a) => !a.archived);
+
+// ───────────────────────── Lançamento ─────────────────────────
+
+function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: () => void }) {
+  const s = useStore();
+  const existing = id ? s.transactions.find((t) => t.id === id) : undefined;
+  const live = s.accounts.filter((a) => !a.archived);
+  const [kind, setKind] = useState<TxKind>(existing?.kind ?? init?.kind ?? 'expense');
+  const [amount, setAmount] = useState(existing ? String(existing.amount).replace('.', ',') : init?.amount ? String(init.amount).replace('.', ',') : '');
+  const [description, setDescription] = useState(existing?.description ?? init?.description ?? '');
+  const [categoryId, setCategoryId] = useState<string | null>(existing ? existing.category_id : init?.category_id ?? null);
+  const [accountId, setAccountId] = useState(existing?.account_id ?? init?.account_id ?? defaultAccount(s.accounts)?.id ?? '');
+  const [toId, setToId] = useState(existing?.to_account_id ?? init?.to_account_id ?? '');
+  const [date, setDate] = useState(existing?.date ?? init?.date ?? s.today);
+  const [statusTouched, setStatusTouched] = useState(!!existing || !!init?.status);
+  const [status, setStatus] = useState<'paid' | 'pending'>(existing?.status ?? init?.status ?? 'paid');
+  const [installments, setInstallments] = useState(init?.installments ?? 1);
+  const [tags, setTags] = useState<string[]>(existing?.tags ?? init?.tags ?? []);
+  const [tagInput, setTagInput] = useState('');
+  const [notes, setNotes] = useState(existing?.notes ?? '');
+  const [invoiceRef, setInvoiceRef] = useState<string | null>(existing?.invoice_ref ?? init?.invoice_ref ?? null);
+  const [learn] = useState(init?.keyword ?? null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const account = s.accounts.find((a) => a.id === accountId);
+  const toAccount = s.accounts.find((a) => a.id === toId);
+  const isCard = account?.kind === 'credit';
+  const cats = s.categories.filter((c) => !c.archived && c.kind === (kind === 'income' ? 'income' : 'expense'));
+  const value = parseAmount(amount);
+  const cardMonths = toAccount?.kind === 'credit' ? invoiceMonths(toAccount, s.transactions, s.today) : [];
+  const effStatus = isCard && kind !== 'transfer' ? 'paid' : status;
+  const canInstall = !existing && kind !== 'transfer';
+
+  const addTag = () => {
+    const t = norm(tagInput.replace(/^#/, '').trim());
+    if (t && !tags.includes(t)) setTags([...tags, t]);
+    setTagInput('');
+  };
+
+  const onDate = (d: string) => {
+    setDate(d);
+    if (!statusTouched) setStatus(d > s.today ? 'pending' : 'paid');
+  };
+
+  const submit = async () => {
+    if (!value) return setError('Informe um valor maior que zero.');
+    if (!accountId) return setError('Crie uma conta primeiro (aba Mais → Contas).');
+    if (kind === 'transfer' && (!toId || toId === accountId)) return setError('Escolha uma conta de destino diferente da origem.');
+    setBusy(true);
+    setError('');
+    try {
+      const finalTags = tagInput.trim() ? [...new Set([...tags, norm(tagInput.replace(/^#/, '').trim())])] : tags;
+      const base: NewTransaction = {
+        kind, amount: value, date, description: description.trim(), notes: notes.trim(), tags: finalTags,
+        status: effStatus, account_id: accountId, to_account_id: kind === 'transfer' ? toId : null,
+        category_id: kind === 'transfer' ? null : categoryId, installment_group: null, installment_number: null,
+        installment_total: null, recurrence_id: null, ref_month: null,
+        invoice_ref: kind === 'transfer' && toAccount?.kind === 'credit' ? invoiceRef : null,
+      };
+      if (existing) {
+        await s.save<Transaction>('transactions', { id: existing.id, ...base, recurrence_id: existing.recurrence_id, ref_month: existing.ref_month,
+          installment_group: existing.installment_group, installment_number: existing.installment_number, installment_total: existing.installment_total });
+        s.toast('Lançamento atualizado');
+      } else if (installments > 1 && kind !== 'transfer') {
+        await s.addTransactions(buildInstallments(base, installments, !!isCard, s.today, crypto.randomUUID()));
+        s.toast(`${installments} parcelas de ${formatBRL(value / installments)} criadas`);
+      } else {
+        const [created] = await s.addTransactions([base]);
+        s.toast('Lançamento salvo', { label: 'Desfazer', run: () => void s.remove('transactions', [created.id]) });
+      }
+      // aprende a palavra-chave quando a categoria foi escolhida manualmente
+      if (learn && categoryId && kind !== 'transfer') {
+        const cat = s.categories.find((c) => c.id === categoryId);
+        if (cat && !cat.keywords.map(norm).includes(learn)) await s.save<Category>('categories', { id: cat.id, keywords: [...cat.keywords, learn] });
+      }
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não consegui salvar.');
+      setBusy(false);
+    }
+  };
+
+  const del = async () => {
+    if (!existing) return;
+    onClose();
+    await s.removeWithUndo('transactions', [existing], 'Lançamento apagado');
+  };
+  const delGroup = async () => {
+    if (!existing?.installment_group) return;
+    const group = s.transactions.filter((t) => t.installment_group === existing.installment_group);
+    onClose();
+    await s.removeWithUndo('transactions', group, `${group.length} parcelas apagadas`);
+  };
+
+  return (
+    <Sheet title={existing ? 'Editar lançamento' : kind === 'income' ? 'Nova receita' : kind === 'transfer' ? 'Nova transferência' : 'Nova despesa'} onClose={onClose}>
+      <Segmented<TxKind> value={kind} onChange={(k) => { setKind(k); setCategoryId(null); }}
+        options={[{ id: 'expense', label: 'Despesa' }, { id: 'income', label: 'Receita' }, { id: 'transfer', label: 'Transferência' }]} />
+      <div className="amount-wrap">
+        <small>Valor (R$)</small>
+        <input className="amount-input" inputMode="decimal" placeholder="0,00" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Valor" autoFocus={!existing} />
+        {installments > 1 && value ? <small>{installments}x de {formatBRL(value / installments)}</small> : null}
+      </div>
+
+      {kind !== 'transfer' && (
+        <Field label="Descrição">
+          <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex.: Mercado" />
+        </Field>
+      )}
+      {kind !== 'transfer' && (
+        <Field label="Categoria">
+          <div className="chips">
+            {cats.map((c) => (
+              <button key={c.id} type="button" className={`chip ${categoryId === c.id ? 'active' : ''}`} onClick={() => setCategoryId(categoryId === c.id ? null : c.id)}>
+                <CategoryIcon name={c.icon} size={16} /> {c.name}
+              </button>
+            ))}
+          </div>
+        </Field>
+      )}
+
+      <Field label={kind === 'transfer' ? 'De' : 'Conta'}>
+        <select className="select" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+          {live.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+      </Field>
+      {kind === 'transfer' && (
+        <>
+          <Field label="Para">
+            <select className="select" value={toId} onChange={(e) => { setToId(e.target.value); setInvoiceRef(null); }}>
+              <option value="">Escolha…</option>
+              {live.filter((a) => a.id !== accountId).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </Field>
+          {cardMonths.length > 0 && toAccount && (
+            <Field label="Pagamento da fatura de">
+              <select className="select" value={invoiceRef ?? ''} onChange={(e) => setInvoiceRef(e.target.value || null)}>
+                <option value="">Não é pagamento de fatura</option>
+                {cardMonths.map((m) => <option key={m} value={m}>{monthLabel(m)} — resta {formatBRL(buildInvoice(toAccount, s.transactions, m).remaining)}</option>)}
+              </select>
+            </Field>
+          )}
+        </>
+      )}
+
+      <Field label="Data">
+        <input className="input" type="date" value={date} onChange={(e) => e.target.value && onDate(e.target.value)} />
+      </Field>
+
+      {!(isCard && kind !== 'transfer') && (
+        <Field label="Situação">
+          <Segmented value={status} onChange={(v) => { setStatus(v); setStatusTouched(true); }}
+            options={[{ id: 'paid', label: kind === 'income' ? 'Recebido' : 'Pago' }, { id: 'pending', label: 'Pendente' }]} />
+        </Field>
+      )}
+
+      {canInstall && (
+        <Field label="Parcelas">
+          <div className="row-between">
+            <div className="seg" style={{ width: 150 }}>
+              <button type="button" onClick={() => setInstallments(Math.max(1, installments - 1))} aria-label="Menos parcelas">−</button>
+              <button type="button" className="active" style={{ cursor: 'default' }}>{installments}x</button>
+              <button type="button" onClick={() => setInstallments(Math.min(48, installments + 1))} aria-label="Mais parcelas">+</button>
+            </div>
+            <span className="muted" style={{ fontSize: 13 }}>{installments > 1 ? 'valor total dividido' : 'à vista'}</span>
+          </div>
+        </Field>
+      )}
+      {existing?.installment_total ? <p className="muted">Parcela {existing.installment_number} de {existing.installment_total}</p> : null}
+
+      <Field label="Tags">
+        <div className="chips">
+          {tags.map((t) => (
+            <span key={t} className="chip active">#{t}<button type="button" className="x" aria-label={`Remover ${t}`} onClick={() => setTags(tags.filter((x) => x !== t))}>×</button></span>
+          ))}
+        </div>
+        <input className="input" value={tagInput} placeholder="Digite e pressione Enter" onChange={(e) => setTagInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); } }} onBlur={addTag} />
+      </Field>
+      <Field label="Observação">
+        <textarea className="textarea" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" />
+      </Field>
+
+      {error && <p className="error-text" role="alert">{error}</p>}
+      <div className="form-actions">
+        <button className="btn primary block" onClick={submit} disabled={busy}>{busy ? 'Salvando…' : 'Salvar'}</button>
+        {existing && <button className="btn danger block" onClick={del}><Trash2 size={18} /> Apagar</button>}
+        {existing?.installment_group && <button className="btn danger block" onClick={delGroup}>Apagar todas as parcelas</button>}
+      </div>
+    </Sheet>
+  );
+}
+
+// ───────────────────────── Conta ─────────────────────────
+
+function AccountEditor({ id, onClose }: { id?: string; onClose: () => void }) {
+  const s = useStore();
+  const existing = id ? s.accounts.find((a) => a.id === id) : undefined;
+  const [name, setName] = useState(existing?.name ?? '');
+  const [kind, setKind] = useState<AccountKind>(existing?.kind ?? 'checking');
+  const [initial, setInitial] = useState(existing ? String(existing.initial_balance).replace('.', ',') : '');
+  const [closing, setClosing] = useState(String(existing?.closing_day ?? 10));
+  const [due, setDue] = useState(String(existing?.due_day ?? 17));
+  const [limit, setLimit] = useState(existing?.credit_limit ? String(existing.credit_limit).replace('.', ',') : '');
+  const [color, setColor] = useState(existing?.color ?? COLORS[9]);
+  const [isDefault, setIsDefault] = useState(existing?.is_default ?? !s.accounts.some((a) => a.is_default));
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!name.trim()) return setError('Dê um nome para a conta.');
+    const init = initial.trim() ? (initial.trim().startsWith('-') ? -(parseAmount(initial.trim().slice(1)) ?? NaN) : parseAmount(initial)) : 0;
+    if (init === null || Number.isNaN(init)) return setError('Saldo inicial inválido.');
+    const c = Number(closing), d = Number(due);
+    if (kind === 'credit' && !(c >= 1 && c <= 31 && d >= 1 && d <= 31)) return setError('Informe dias de fechamento e vencimento entre 1 e 31.');
+    setBusy(true);
+    try {
+      if (isDefault) for (const a of s.accounts.filter((a) => a.is_default && a.id !== existing?.id)) await s.save<Account>('accounts', { id: a.id, is_default: false });
+      await s.save<Account>('accounts', {
+        ...(existing ? { id: existing.id } : {}), name: name.trim(), kind, initial_balance: init,
+        closing_day: kind === 'credit' ? c : null, due_day: kind === 'credit' ? d : null,
+        credit_limit: kind === 'credit' && limit ? parseAmount(limit) : null, color, is_default: kind === 'checking' && isDefault,
+        archived: existing?.archived ?? false,
+      });
+      s.toast(existing ? 'Conta atualizada' : 'Conta criada');
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não consegui salvar.');
+      setBusy(false);
+    }
+  };
+
+  const archive = async () => {
+    if (!existing) return;
+    await s.save<Account>('accounts', { id: existing.id, archived: !existing.archived });
+    onClose();
+  };
+  const del = async () => {
+    if (!existing) return;
+    const n = s.transactions.filter((t) => t.account_id === existing.id || t.to_account_id === existing.id).length;
+    if (!window.confirm(`Apagar "${existing.name}" e seus ${n} lançamentos? Isso não pode ser desfeito.`)) return;
+    await s.remove('accounts', [existing.id]);
+    onClose();
+  };
+
+  return (
+    <Sheet title={existing ? 'Editar conta' : 'Nova conta'} onClose={onClose}>
+      {!existing && (
+        <Segmented<AccountKind> value={kind} onChange={setKind}
+          options={[{ id: 'checking', label: 'Conta' }, { id: 'credit', label: 'Cartão' }, { id: 'investment', label: 'Investimento' }]} />
+      )}
+      <Field label="Nome"><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={kind === 'credit' ? 'Ex.: Nubank Cartão' : kind === 'investment' ? 'Ex.: Tesouro Selic' : 'Ex.: Nubank Conta'} /></Field>
+      <Field label={kind === 'investment' ? 'Saldo atual (R$)' : kind === 'credit' ? 'Saldo inicial do cartão (R$) — normalmente 0' : 'Saldo inicial (R$)'}>
+        <input className="input" inputMode="decimal" value={initial} onChange={(e) => setInitial(e.target.value)} placeholder="0,00" />
+      </Field>
+      {kind === 'credit' && (
+        <>
+          <div className="grid2">
+            <Field label="Dia do fechamento"><input className="input" inputMode="numeric" value={closing} onChange={(e) => setClosing(e.target.value)} /></Field>
+            <Field label="Dia do vencimento"><input className="input" inputMode="numeric" value={due} onChange={(e) => setDue(e.target.value)} /></Field>
+          </div>
+          <Field label="Limite (R$, opcional)"><input className="input" inputMode="decimal" value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="0,00" /></Field>
+        </>
+      )}
+      <Field label="Cor">
+        <div className="swatches">
+          {COLORS.map((c) => <button key={c} type="button" aria-label={`Cor ${c}`} className={`swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />)}
+        </div>
+      </Field>
+      {kind === 'checking' && (
+        <div className="row-field"><span>Conta padrão (campo rápido)</span><Switch checked={isDefault} onChange={setIsDefault} label="Conta padrão" /></div>
+      )}
+      {error && <p className="error-text" role="alert">{error}</p>}
+      <div className="form-actions">
+        <button className="btn primary block" onClick={submit} disabled={busy}>Salvar</button>
+        {existing && <button className="btn block" onClick={archive}>{existing.archived ? 'Reativar conta' : 'Arquivar conta'}</button>}
+        {existing && <button className="btn danger block" onClick={del}><Trash2 size={18} /> Apagar conta</button>}
+      </div>
+    </Sheet>
+  );
+}
+
+// ───────────────────────── Categoria ─────────────────────────
+
+function CategoryEditor({ id, kind: initKind, onClose }: { id?: string; kind?: 'expense' | 'income'; onClose: () => void }) {
+  const s = useStore();
+  const existing = id ? s.categories.find((c) => c.id === id) : undefined;
+  const [name, setName] = useState(existing?.name ?? '');
+  const [kind, setKind] = useState<'expense' | 'income'>(existing?.kind ?? initKind ?? 'expense');
+  const [icon, setIcon] = useState(existing?.icon ?? 'tag');
+  const [color, setColor] = useState(existing?.color ?? COLORS[0]);
+  const [keywords, setKeywords] = useState((existing?.keywords ?? []).join(', '));
+  const [budget, setBudget] = useState(existing?.budget_limit ? String(existing.budget_limit).replace('.', ',') : '');
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    if (!name.trim()) return setError('Dê um nome para a categoria.');
+    const limit = budget.trim() ? parseAmount(budget) : null;
+    if (budget.trim() && limit === null) return setError('Limite inválido.');
+    try {
+      await s.save<Category>('categories', {
+        ...(existing ? { id: existing.id } : {}), name: name.trim(), kind, icon, color,
+        keywords: [...new Set(keywords.split(/[,\n]/).map((k) => norm(k.trim())).filter(Boolean))],
+        budget_limit: kind === 'expense' ? limit : null, archived: existing?.archived ?? false,
+      });
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não consegui salvar.');
+    }
+  };
+  const del = async () => {
+    if (!existing || !window.confirm(`Apagar a categoria "${existing.name}"? Os lançamentos ficam sem categoria.`)) return;
+    await s.remove('categories', [existing.id]);
+    onClose();
+  };
+
+  return (
+    <Sheet title={existing ? 'Editar categoria' : 'Nova categoria'} onClose={onClose}>
+      {!existing && <Segmented value={kind} onChange={setKind} options={[{ id: 'expense', label: 'Despesa' }, { id: 'income', label: 'Receita' }]} />}
+      <Field label="Nome"><input className="input" value={name} onChange={(e) => setName(e.target.value)} /></Field>
+      {kind === 'expense' && (
+        <Field label="Limite mensal (R$, opcional)"><input className="input" inputMode="decimal" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="Sem limite" /></Field>
+      )}
+      <Field label="Palavras-chave do campo rápido (separe por vírgula)">
+        <input className="input" value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="mercado, padaria, ifood" />
+      </Field>
+      <Field label="Ícone">
+        <div className="icon-grid">
+          {Object.keys(CATEGORY_ICONS).map((k) => (
+            <button key={k} type="button" aria-label={k} className={icon === k ? 'active' : ''} onClick={() => setIcon(k)}><CategoryIcon name={k} size={20} /></button>
+          ))}
+        </div>
+      </Field>
+      <Field label="Cor">
+        <div className="swatches">
+          {COLORS.map((c) => <button key={c} type="button" aria-label={`Cor ${c}`} className={`swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />)}
+        </div>
+      </Field>
+      {error && <p className="error-text" role="alert">{error}</p>}
+      <div className="form-actions">
+        <button className="btn primary block" onClick={submit}>Salvar</button>
+        {existing && <button className="btn danger block" onClick={del}><Trash2 size={18} /> Apagar categoria</button>}
+      </div>
+    </Sheet>
+  );
+}
+
+// ───────────────────────── Recorrência ─────────────────────────
+
+function RecurrenceEditor({ id, onClose }: { id?: string; onClose: () => void }) {
+  const s = useStore();
+  const existing = id ? s.recurrences.find((r) => r.id === id) : undefined;
+  const [kind, setKind] = useState<'expense' | 'income'>(existing?.kind ?? 'expense');
+  const [description, setDescription] = useState(existing?.description ?? '');
+  const [amount, setAmount] = useState(existing ? String(existing.amount).replace('.', ',') : '');
+  const [accountId, setAccountId] = useState(existing?.account_id ?? defaultAccount(s.accounts)?.id ?? '');
+  const [categoryId, setCategoryId] = useState<string | null>(existing?.category_id ?? null);
+  const [day, setDay] = useState(String(existing?.day_of_month ?? new Date().getDate()));
+  const [start, setStart] = useState(existing?.start_month ?? monthOf(s.today));
+  const [end, setEnd] = useState(existing?.end_month ?? '');
+  const [active, setActive] = useState(existing?.active ?? true);
+  const [error, setError] = useState('');
+  const cats = s.categories.filter((c) => !c.archived && c.kind === kind);
+
+  const submit = async () => {
+    const value = parseAmount(amount);
+    const d = Number(day);
+    if (!description.trim()) return setError('Dê um nome (ex.: Aluguel, Netflix).');
+    if (!value) return setError('Informe um valor maior que zero.');
+    if (!accountId) return setError('Crie uma conta primeiro.');
+    if (!(d >= 1 && d <= 31)) return setError('Dia do mês entre 1 e 31.');
+    if (end && end < start) return setError('O mês final não pode ser antes do inicial.');
+    try {
+      const saved = await s.save<Recurrence>('recurrences', {
+        ...(existing ? { id: existing.id } : { last_generated_month: null }), description: description.trim(), amount: value, kind,
+        account_id: accountId, category_id: categoryId, tags: existing?.tags ?? [], day_of_month: d, start_month: start,
+        end_month: end || null, active,
+      });
+      if (active) await s.syncRecurrences(saved);
+      s.toast(existing ? 'Recorrência atualizada' : 'Recorrência criada');
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não consegui salvar.');
+    }
+  };
+  const del = async () => {
+    if (!existing) return;
+    onClose();
+    await s.removeWithUndo('recurrences', [existing], 'Recorrência apagada (lançamentos já criados foram mantidos)');
+  };
+
+  return (
+    <Sheet title={existing ? 'Editar recorrência' : 'Nova recorrência'} onClose={onClose}>
+      <Segmented value={kind} onChange={(k) => { setKind(k); setCategoryId(null); }} options={[{ id: 'expense', label: 'Despesa' }, { id: 'income', label: 'Receita' }]} />
+      <Field label="Nome"><input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex.: Aluguel, Netflix" /></Field>
+      <Field label="Valor mensal (R$)"><input className="input" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" /></Field>
+      <Field label="Conta">
+        <select className="select" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+          {s.accounts.filter((a) => !a.archived && a.kind !== 'investment').map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+      </Field>
+      <Field label="Categoria">
+        <div className="chips">
+          {cats.map((c) => (
+            <button key={c.id} type="button" className={`chip ${categoryId === c.id ? 'active' : ''}`} onClick={() => setCategoryId(categoryId === c.id ? null : c.id)}>
+              <CategoryIcon name={c.icon} size={16} /> {c.name}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <div className="grid2">
+        <Field label="Dia do mês"><input className="input" inputMode="numeric" value={day} onChange={(e) => setDay(e.target.value)} /></Field>
+        <Field label="Começa em"><input className="input" type="month" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
+      </div>
+      <Field label="Termina em (opcional)"><input className="input" type="month" value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
+      <div className="row-field"><span>Ativa</span><Switch checked={active} onChange={setActive} label="Ativa" /></div>
+      {error && <p className="error-text" role="alert">{error}</p>}
+      <div className="form-actions">
+        <button className="btn primary block" onClick={submit}>Salvar</button>
+        {existing && <button className="btn danger block" onClick={del}><Trash2 size={18} /> Apagar</button>}
+      </div>
+    </Sheet>
+  );
+}
+
+// ───────────────────────── Saldo de investimento ─────────────────────────
+
+function SnapshotEditor({ accountId, onClose }: { accountId: string; onClose: () => void }) {
+  const s = useStore();
+  const acc = s.accounts.find((a) => a.id === accountId);
+  const [balance, setBalance] = useState('');
+  const [date, setDate] = useState(s.today);
+  const [error, setError] = useState('');
+  const submit = async () => {
+    const v = parseAmount(balance) ?? (balance.trim() === '0' ? 0 : null);
+    if (v === null) return setError('Informe o saldo atual.');
+    try {
+      await s.insertMany<Snapshot>('investment_snapshots', [{ account_id: accountId, date, balance: v }]);
+      s.toast('Saldo atualizado');
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não consegui salvar.');
+    }
+  };
+  return (
+    <Sheet title="Atualizar saldo" onClose={onClose}>
+      <p className="muted">Quanto tem hoje em <b>{acc?.name}</b>? O Bolso guarda o histórico para montar o gráfico do patrimônio.</p>
+      <Field label="Saldo (R$)"><input className="input" inputMode="decimal" value={balance} onChange={(e) => setBalance(e.target.value)} autoFocus placeholder="0,00" /></Field>
+      <Field label="Data"><input className="input" type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} /></Field>
+      {error && <p className="error-text" role="alert">{error}</p>}
+      <button className="btn primary block" onClick={submit}>Salvar</button>
+    </Sheet>
+  );
+}
