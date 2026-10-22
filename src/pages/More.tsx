@@ -89,7 +89,7 @@ export function More() {
       <div className="group">
         <button className="item" onClick={() => void s.signOut()}><span className="ico bad"><LogOut size={19} /></span><span className="main"><b className="red">Sair</b></span></button>
       </div>
-      <p className="muted" style={{ textAlign: 'center', fontSize: 12.5 }}>Bolso 0.1 · feito para uso pessoal</p>
+      <p className="muted" style={{ textAlign: 'center', fontSize: 12.5 }}>Bolso · versão {__BUILD_ID__}</p>
     </div>
   );
 }
