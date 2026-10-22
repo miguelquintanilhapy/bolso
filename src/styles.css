@@ -168,7 +168,7 @@ a { color: inherit; text-decoration: none; }
 .btn.block { width: 100%; }
 .btn.sm { height: 40px; padding: 0 14px; font-size: 14px; }
 .btn:disabled { opacity: 0.45; }
-.pills { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 2px 16px; }
+.pills { display: flex; gap: 8px; overflow-x: auto; scroll-padding-inline: 16px; scrollbar-width: none; margin: 0 -16px; padding: 2px 16px; }
 .pills::-webkit-scrollbar { display: none; }
 .pill { flex: none; height: 42px; padding: 0 16px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); font-weight: 500; color: var(--text-2); white-space: nowrap; }
 .pill.active { background: var(--primary); color: var(--on-primary); }
@@ -269,7 +269,7 @@ a { color: inherit; text-decoration: none; }
 .acc-card b.big { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; display: block; margin-top: 2px; }
 .acc-card .meta { display: flex; justify-content: space-between; font-size: 13px; opacity: 0.85; position: relative; z-index: 1; }
 .acc-card > * { position: relative; z-index: 1; }
-.carousel { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -16px; padding: 2px 16px 6px; scrollbar-width: none; }
+.carousel { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 16px; margin: 0 -16px; padding: 2px 16px 6px; scrollbar-width: none; }
 .carousel::-webkit-scrollbar { display: none; }
 .carousel > * { flex: 0 0 82%; scroll-snap-align: start; }
 .carousel > .only { flex-basis: 100%; }
@@ -435,7 +435,8 @@ button, [role='button'], .nav, .pill, .chip, .seg { -webkit-user-select: none; u
 html { overscroll-behavior-x: none; }
 html, body { max-width: 100%; }
 body { touch-action: pan-y pinch-zoom; }
-.app, .page { overflow-x: clip; }
+/* o corte lateral fica só no .app (que tem padding): o carrossel e as abas deslizantes vão até a borda da tela sem serem cortados */
+.app { overflow-x: clip; }
 /* listas que rolam de lado não repassam o gesto para a página */
 .carousel, .pills { overscroll-behavior-x: contain; touch-action: pan-x pan-y pinch-zoom; }
 .sheet, .sheet-body { overscroll-behavior: contain; }
