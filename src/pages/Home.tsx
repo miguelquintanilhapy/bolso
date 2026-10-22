@@ -40,6 +40,7 @@ export function Home() {
   const { newTx, openAccount } = useEditor();
   const nav = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
+  const sending = useRef(false); // trava contra duplo envio
   const [text, setText] = useState('');
   const [hint, setHint] = useState(0);
   const [help, setHelp] = useState(false);
@@ -79,7 +80,7 @@ export function Home() {
 
   const quick = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!text.trim()) return;
+    if (!text.trim() || sending.current) return;
     const r = parseQuickEntry(text, { categories: s.categories, accounts: s.accounts, today: s.today });
     if (!r.ok) return s.toast(r.reason);
     const d = r.draft;
@@ -96,16 +97,21 @@ export function Home() {
       status: isCard || d.date <= s.today ? 'paid' : 'pending', account_id: acc.id, to_account_id: null, category_id: d.category_id,
       installment_group: null, installment_number: null, installment_total: null, recurrence_id: null, ref_month: null, invoice_ref: null,
     };
+    const typed = text;
+    sending.current = true;
+    setText(''); // limpa já: o segundo toque encontra o campo vazio
     try {
       const rows = d.installments > 1 ? buildInstallments(base, d.installments, isCard, s.today, crypto.randomUUID()) : [base];
       const created = await s.addTransactions(rows);
-      setText('');
       const cat = s.categories.find((c) => c.id === d.category_id)?.name;
       s.toast(`${d.kind === 'income' ? 'Entrada' : 'Saída'} de ${formatBRL(d.amount)} em ${cat} · ${acc.name}${d.installments > 1 ? ` · ${d.installments}x` : ''}`, {
         label: 'Desfazer', run: () => void s.remove('transactions', created.map((t) => t.id)),
       });
     } catch (err) {
+      setText(typed); // não perde o que foi digitado se der erro
       s.toast(err instanceof Error ? err.message : 'Não consegui salvar.');
+    } finally {
+      sending.current = false;
     }
   };
 

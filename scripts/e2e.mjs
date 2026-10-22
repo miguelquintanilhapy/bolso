@@ -148,6 +148,21 @@ await page.press('.sheet .amount-input', 'Enter');
 await page.waitForSelector('.sheet', { state: 'detached' });
 check('Enter com valor salva e fecha o painel', true);
 
+// duplo envio: dois disparos no mesmo instante não podem criar dois lançamentos
+await go('/');
+await page.fill('input[aria-label="Lançamento rápido"]', '77 mercado');
+await page.evaluate(() => { const f = document.querySelector('form.quick'); f.requestSubmit(); f.requestSubmit(); });
+await page.waitForSelector('.toast:has-text("R$ 77,00")'); await page.waitForTimeout(500);
+await go('/lancamentos');
+const dup = await page.locator('.item:has-text("R$ 77,00")').count();
+check('campo rápido: duplo envio cria só 1 lançamento', dup === 1, `criou ${dup}`);
+await page.click('button[aria-label="Novo lançamento"]'); await page.waitForSelector('.sheet');
+await page.fill('.sheet .amount-input', '88');
+await page.evaluate(() => { const b = document.querySelector('.sheet-foot .btn.primary'); b.click(); b.click(); });
+await page.waitForSelector('.sheet', { state: 'detached' }); await page.waitForTimeout(500);
+const dup2 = await page.locator('.item:has-text("R$ 88,00")').count();
+check('formulário: duplo clique em Salvar cria só 1 lançamento', dup2 === 1, `criou ${dup2}`);
+
 // arrastar o painel para baixo fecha
 await page.click('button[aria-label="Novo lançamento"]');
 await page.waitForSelector('.sheet');
