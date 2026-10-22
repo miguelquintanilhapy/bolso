@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { ArrowDown, ArrowLeftRight, ArrowUp, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { ArrowDown, ArrowLeftRight, ArrowUp, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useStore } from '../store';
 import type { Account, Category, Transaction } from '../lib/types';
 import { addMonthsToMonth, monthLabel } from '../lib/dates';
 import { Money } from './privacy';
@@ -43,9 +44,18 @@ export function Switch({ checked, onChange, label }: { checked: boolean; onChang
   return <button type="button" role="switch" aria-checked={checked} aria-label={label} className="switch" onClick={() => onChange(!checked)} />;
 }
 
-export function Empty({ title, children }: { title: string; children?: ReactNode }) {
-  return <div className="empty"><b>{title}</b>{children}</div>;
+export function Empty({ title, children, icon, action }: { title: string; children?: ReactNode; icon?: ReactNode; action?: ReactNode }) {
+  return (
+    <div className="empty">
+      {icon && <div className="empty-ico" aria-hidden>{icon}</div>}
+      <b>{title}</b>{children}{action}
+    </div>
+  );
 }
+
+/** Saldo do dia (receitas − despesas), ignorando transferências. */
+export const dayNet = (rows: Transaction[]) =>
+  Math.round(rows.reduce((s, t) => s + (t.kind === 'income' ? t.amount : t.kind === 'expense' ? -t.amount : 0), 0) * 100) / 100;
 
 export function SectionTitle({ title, action }: { title: string; action?: ReactNode }) {
   return <div className="section-title"><h2>{title}</h2>{action}</div>;
@@ -62,31 +72,46 @@ interface TxRowProps {
 
 /** Linha de lançamento no estilo das referências: ícone circular, título, subtítulo cinza e valor à direita. */
 export function TxRow({ tx, accounts, categories, onClick, showDate, hideAccount }: TxRowProps) {
+  const { markPaid, flash, today } = useStore();
   const cat = categories.find((c) => c.id === tx.category_id);
   const acc = accounts.find((a) => a.id === tx.account_id);
   const to = accounts.find((a) => a.id === tx.to_account_id);
   const income = tx.kind === 'income';
   const transfer = tx.kind === 'transfer';
+  const pending = tx.status === 'pending';
+  const late = pending && tx.date < today;
   const title = tx.description || (transfer ? 'Transferência' : cat?.name || (income ? 'Receita' : 'Despesa'));
-  const sub = [
-    transfer ? `${acc?.name ?? '—'} → ${to?.name ?? '—'}` : cat?.name ?? 'Sem categoria',
-    !transfer && acc && !hideAccount ? acc.name : null,
-    tx.installment_total ? `${tx.installment_number}/${tx.installment_total}` : null,
-    showDate ? tx.date.slice(8, 10) + '/' + tx.date.slice(5, 7) : null,
-  ].filter(Boolean).join(' · ');
+  const dm = tx.date.slice(8, 10) + '/' + tx.date.slice(5, 7);
+  const due = late ? `atrasado desde ${dm}` : `vence ${dm}`;
+  // pendente: o vencimento vem primeiro (é o que importa); o botão "Pagar" ocupa a direita
+  const sub = (pending
+    ? [due, transfer ? `${acc?.name ?? '—'} → ${to?.name ?? '—'}` : cat?.name ?? 'Sem categoria', tx.installment_total ? `${tx.installment_number}/${tx.installment_total}` : null]
+    : [
+        transfer ? `${acc?.name ?? '—'} → ${to?.name ?? '—'}` : cat?.name ?? 'Sem categoria',
+        !transfer && acc && !hideAccount ? acc.name : null,
+        tx.installment_total ? `${tx.installment_number}/${tx.installment_total}` : null,
+        showDate ? dm : null,
+      ]
+  ).filter(Boolean).join(' · ');
   return (
-    <button className="item" onClick={onClick}>
-      <span className={`ico ${income ? 'in' : ''}`}>
+    <div className={`item ${flash.has(tx.id) ? 'flash' : ''}`} role="button" tabIndex={0} onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
+      <span className={`ico ${income ? 'in' : ''} ${late ? 'bad' : ''}`}>
         {transfer ? <ArrowLeftRight size={19} /> : cat ? <CategoryIcon name={cat.icon} /> : income ? <ArrowDown size={19} /> : <ArrowUp size={19} />}
       </span>
       <span className="main">
         <b>{title}</b>
-        <small>{sub}{tx.tags.length ? ` · ${tx.tags.map((t) => '#' + t).join(' ')}` : ''}</small>
+        <small className={late ? 'red' : ''}>{sub}{tx.tags.length ? ` · ${tx.tags.map((t) => '#' + t).join(' ')}` : ''}</small>
       </span>
       <span className="side">
         <b className={income ? 'green' : ''}><Money value={income ? tx.amount : transfer ? tx.amount : -tx.amount} signed={income} /></b>
-        {tx.status === 'pending' && <small style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clock size={11} /> pendente</small>}
+        {pending && (
+          <button className="pay-btn" aria-label={`${income ? 'Marcar como recebido' : 'Marcar como pago'}: ${title}`}
+            onClick={(e) => { e.stopPropagation(); void markPaid(tx); }}>
+            <Check size={13} strokeWidth={3} /> {income ? 'Receber' : transfer ? 'Confirmar' : 'Pagar'}
+          </button>
+        )}
       </span>
-    </button>
+    </div>
   );
 }

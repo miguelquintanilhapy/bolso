@@ -87,7 +87,7 @@ export function AccountDetail() {
 
   const header = (
     <div className="topbar">
-      <button className="back" onClick={() => nav(-1)} aria-label="Voltar"><ArrowLeft size={20} /></button>
+      <button className="back" onClick={() => (window.history.state?.idx > 0 ? nav(-1) : nav('/contas'))} aria-label="Voltar"><ArrowLeft size={20} /></button>
       <h1 className="title">{acc.name}</h1>
       <button className="icon-btn" onClick={() => openAccount(acc.id)} aria-label="Editar conta"><Pencil size={18} /></button>
     </div>

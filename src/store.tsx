@@ -36,6 +36,10 @@ interface Ctx extends Data {
   /** Apaga e oferece "Desfazer" por alguns segundos. */
   removeWithUndo: (table: 'transactions' | 'recurrences', rows: Row[], message: string) => Promise<void>;
   markRead: (ids: string[]) => Promise<void>;
+  /** Marca um lançamento pendente como pago/recebido, com "Desfazer". */
+  markPaid: (tx: Transaction) => Promise<void>;
+  /** Ids de lançamentos recém-criados/alterados (destacados por um instante). */
+  flash: ReadonlySet<string>;
   toasts: ToastMsg[];
   toast: (message: string, action?: ToastMsg['action']) => void;
   dismissToast: (id: number) => void;
@@ -54,6 +58,7 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastMsg[]>([]);
+  const [flash, setFlash] = useState<ReadonlySet<string>>(new Set());
   const today = useMemo(todayISO, []);
   const booted = useRef(false);
   const dataRef = useRef<Data>(emptyData);
@@ -154,11 +159,17 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
     })();
   }, [load, today, processRecurrences]);
 
+  const flashFor = useCallback((ids: string[]) => {
+    setFlash((f) => new Set([...f, ...ids]));
+    setTimeout(() => setFlash((f) => { const n = new Set(f); ids.forEach((i) => n.delete(i)); return n; }), 1700);
+  }, []);
+
   const addTransactions = useCallback(async (rows: NewTransaction[]) => {
     const created = await db.insert<Transaction>('transactions', rows);
     merge('transactions', created);
+    flashFor(created.map((t) => t.id));
     return created;
-  }, [merge]);
+  }, [merge, flashFor]);
 
   const save = useCallback(async <T extends Row>(table: Table, row: Partial<T> & object) => {
     const id = (row as Partial<Row>).id;
@@ -197,8 +208,34 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
     for (const n of targets) merge('notifications', [await db.update<AppNotification>('notifications', n.id, { read: true })]);
   }, [data.notifications, merge]);
 
+  const markPaid = useCallback(async (tx: Transaction) => {
+    try {
+      const updated = await db.update<Transaction>('transactions', tx.id, { status: 'paid' });
+      merge('transactions', [updated]);
+      flashFor([tx.id]);
+      toast(tx.kind === 'income' ? 'Marcado como recebido' : 'Marcado como pago', {
+        label: 'Desfazer',
+        run: async () => merge('transactions', [await db.update<Transaction>('transactions', tx.id, { status: 'pending' })]),
+      });
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Não consegui atualizar.');
+    }
+  }, [merge, flashFor, toast]);
+
+  // ao voltar para o app depois de um tempo, busca de novo (ex.: lançou pelo computador)
+  useEffect(() => {
+    let hiddenAt = 0;
+    const onVisible = () => {
+      if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+      if (hiddenAt && Date.now() - hiddenAt > 60_000) void reload().catch(() => {});
+      hiddenAt = 0;
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [reload]);
+
   const value: Ctx = {
-    ...data, user, today, mode: db.mode, reload, syncRecurrences, addTransactions, save, insertMany, remove, removeWithUndo, markRead,
+    ...data, user, today, mode: db.mode, reload, syncRecurrences, addTransactions, save, insertMany, remove, removeWithUndo, markRead, markPaid, flash,
     toasts, toast, dismissToast, signOut: () => db.signOut(),
   };
 

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Search, SlidersHorizontal } from 'lucide-react';
+import { Receipt, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useStore } from '../store';
-import { Empty, MonthNav, Pills, TxRow } from '../ui/common';
+import { Empty, MonthNav, Pills, TxRow, dayNet } from '../ui/common';
 import { useEditor } from '../ui/editors';
 import { Money } from '../ui/privacy';
 import { dayLabel, monthOf } from '../lib/dates';
@@ -13,7 +13,7 @@ type Type = 'all' | 'expense' | 'income' | 'transfer' | 'pending';
 
 export function Transactions() {
   const s = useStore();
-  const { editTx } = useEditor();
+  const { editTx, newTx } = useEditor();
   const nav = useNavigate();
   const { id } = useParams();
   const [month, setMonth] = useState(monthOf(s.today));
@@ -55,10 +55,13 @@ export function Transactions() {
   const inc = round2(filtered.filter((t) => t.kind === 'income').reduce((x, t) => x + t.amount, 0));
   const exp = round2(filtered.filter((t) => t.kind === 'expense').reduce((x, t) => x + t.amount, 0));
   const activeFilters = [accountId, categoryId, tag].filter(Boolean).length;
+  const pendingCount = s.transactions.filter((t) => t.status === 'pending').length;
+  const clearAll = () => { setAccountId(''); setCategoryId(''); setTag(''); setAllTime(false); setQ(''); setType('all'); };
+  const hasFilter = activeFilters > 0 || !!q.trim() || type !== 'all';
 
   return (
     <div className="screen">
-      <div className="topbar"><h1 className="title" style={{ fontSize: 22 }}>Lançamentos</h1></div>
+      <div className="topbar"><h1 className="title" style={{ fontSize: 22 }}>Extrato</h1></div>
       <div style={{ display: 'flex', gap: 8 }}>
         <label className="search" style={{ flex: 1 }}>
           <Search size={18} />
@@ -68,6 +71,14 @@ export function Transactions() {
           <SlidersHorizontal size={20} />
         </button>
       </div>
+
+      {activeFilters > 0 && !showFilters && (
+        <div className="filter-chips" aria-label="Filtros ativos">
+          {accountId && <button className="chip active" onClick={() => setAccountId('')}>{s.accounts.find((a) => a.id === accountId)?.name} <X size={14} /></button>}
+          {categoryId && <button className="chip active" onClick={() => setCategoryId('')}>{s.categories.find((c) => c.id === categoryId)?.name} <X size={14} /></button>}
+          {tag && <button className="chip active" onClick={() => setTag('')}>#{tag} <X size={14} /></button>}
+        </div>
+      )}
 
       {showFilters && (
         <div className="card stack">
@@ -92,22 +103,27 @@ export function Transactions() {
 
       <Pills<Type> value={type} onChange={setType} options={[
         { id: 'all', label: 'Todos' }, { id: 'expense', label: 'Despesas' }, { id: 'income', label: 'Receitas' },
-        { id: 'transfer', label: 'Transferências' }, { id: 'pending', label: 'Pendentes' },
+        { id: 'transfer', label: 'Transferências' }, { id: 'pending', label: pendingCount ? `Pendentes · ${pendingCount}` : 'Pendentes' },
       ]} />
       {!allTime && <MonthNav month={month} onChange={setMonth} />}
 
-      <div className="mini-stats" style={{ marginTop: 0 }}>
+      <div className="mini-stats solo" style={{ marginTop: 0 }}>
         <div className="mini"><span>Entradas</span><b className="green"><Money value={inc} /></b></div>
         <div className="mini"><span>Saídas</span><b><Money value={exp} /></b></div>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="card"><Empty title="Nada por aqui">Nenhum lançamento com esses filtros.</Empty></div>
+        <div className="card">
+          <Empty icon={<Receipt size={26} />} title={hasFilter ? 'Nada com esses filtros' : 'Nenhum lançamento neste mês'}
+            action={hasFilter ? <button className="btn" onClick={clearAll}>Limpar filtros</button> : <button className="btn primary" onClick={() => newTx()}>Novo lançamento</button>}>
+            {hasFilter ? 'Tente outra busca ou limpe os filtros.' : 'Use o botão + ou o lançamento rápido na tela inicial.'}
+          </Empty>
+        </div>
       ) : (
         <div className="list">
           {Object.entries(groups).map(([date, rows]) => (
             <div key={date} className="list">
-              <div className="day-label"><span>{dayLabel(date, s.today)}</span></div>
+              <div className="day-label"><span>{dayLabel(date, s.today)}</span><b><Money value={dayNet(rows)} signed /></b></div>
               {rows.map((t) => <TxRow key={t.id} tx={t} accounts={s.accounts} categories={s.categories} onClick={() => editTx(t.id)} />)}
             </div>
           ))}

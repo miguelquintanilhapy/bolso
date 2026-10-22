@@ -60,7 +60,7 @@ export function Budgets() {
 
       {statuses.length > 0 && (
         <>
-          <SectionTitle title="Por categoria" />
+          <SectionTitle title="Por categoria" action={<span className="muted" style={{ fontSize: 13 }}>Toque para ajustar o limite</span>} />
           <div className="group">
             {statuses.map((b) => (
               <button key={b.category.id} className="item" onClick={() => openCategory(b.category.id)}>

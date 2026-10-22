@@ -1,13 +1,14 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useStore } from '../store';
-import { Sheet } from './Sheet';
+import { Sheet, SheetClosing } from './Sheet';
+import { useConfirm } from './confirm';
 import { Segmented, Switch } from './common';
 import { CATEGORY_ICONS, CategoryIcon, COLORS } from './icons';
 import type { Account, AccountKind, Category, NewTransaction, Recurrence, Snapshot, Transaction, TxKind } from '../lib/types';
 import { buildInstallments, invoiceMonths, buildInvoice } from '../lib/finance';
 import { formatBRL, parseAmount } from '../lib/money';
-import { monthLabel, monthOf } from '../lib/dates';
+import { addDays, monthLabel, monthOf } from '../lib/dates';
 import { norm } from '../lib/quickEntry';
 
 export type TxInit = Partial<{
@@ -39,23 +40,36 @@ export const useEditor = () => {
 
 export function EditorProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState<Open | null>(null);
-  const close = useCallback(() => setOpen(null), []);
+  const [closing, setClosing] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const close = useCallback(() => {
+    setClosing(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => { setOpen(null); setClosing(false); }, 210);
+  }, []);
+  const show = useCallback((o: Open) => {
+    clearTimeout(timer.current);
+    setClosing(false);
+    setOpen(o);
+  }, []);
   const api = useMemo<EditorApi>(() => ({
-    newTx: (init) => setOpen({ type: 'tx', init }),
-    editTx: (id) => setOpen({ type: 'tx', id }),
-    openAccount: (id) => setOpen({ type: 'account', id }),
-    openCategory: (id, kind) => setOpen({ type: 'category', id, kind }),
-    openRecurrence: (id) => setOpen({ type: 'recurrence', id }),
-    openSnapshot: (accountId) => setOpen({ type: 'snapshot', accountId }),
-  }), []);
+    newTx: (init) => show({ type: 'tx', init }),
+    editTx: (id) => show({ type: 'tx', id }),
+    openAccount: (id) => show({ type: 'account', id }),
+    openCategory: (id, kind) => show({ type: 'category', id, kind }),
+    openRecurrence: (id) => show({ type: 'recurrence', id }),
+    openSnapshot: (accountId) => show({ type: 'snapshot', accountId }),
+  }), [show]);
   return (
     <Ctx.Provider value={api}>
       {children}
-      {open?.type === 'tx' && <TxEditor key={open.id ?? 'new'} id={open.id} init={open.init} onClose={close} />}
-      {open?.type === 'account' && <AccountEditor id={open.id} onClose={close} />}
-      {open?.type === 'category' && <CategoryEditor id={open.id} kind={open.kind} onClose={close} />}
-      {open?.type === 'recurrence' && <RecurrenceEditor id={open.id} onClose={close} />}
-      {open?.type === 'snapshot' && <SnapshotEditor accountId={open.accountId} onClose={close} />}
+      <SheetClosing.Provider value={closing}>
+        {open?.type === 'tx' && <TxEditor key={open.id ?? 'new'} id={open.id} init={open.init} onClose={close} />}
+        {open?.type === 'account' && <AccountEditor id={open.id} onClose={close} />}
+        {open?.type === 'category' && <CategoryEditor id={open.id} kind={open.kind} onClose={close} />}
+        {open?.type === 'recurrence' && <RecurrenceEditor id={open.id} onClose={close} />}
+        {open?.type === 'snapshot' && <SnapshotEditor accountId={open.accountId} onClose={close} />}
+      </SheetClosing.Provider>
     </Ctx.Provider>
   );
 }
@@ -69,6 +83,8 @@ const defaultAccount = (accounts: Account[]) =>
 
 // ───────────────────────── Lançamento ─────────────────────────
 
+type DateMode = 'today' | 'yest' | 'other';
+
 function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: () => void }) {
   const s = useStore();
   const existing = id ? s.transactions.find((t) => t.id === id) : undefined;
@@ -77,9 +93,11 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
   const [amount, setAmount] = useState(existing ? String(existing.amount).replace('.', ',') : init?.amount ? String(init.amount).replace('.', ',') : '');
   const [description, setDescription] = useState(existing?.description ?? init?.description ?? '');
   const [categoryId, setCategoryId] = useState<string | null>(existing ? existing.category_id : init?.category_id ?? null);
+  const [categoryTouched, setCategoryTouched] = useState(!!existing || !!init?.category_id);
   const [accountId, setAccountId] = useState(existing?.account_id ?? init?.account_id ?? defaultAccount(s.accounts)?.id ?? '');
   const [toId, setToId] = useState(existing?.to_account_id ?? init?.to_account_id ?? '');
   const [date, setDate] = useState(existing?.date ?? init?.date ?? s.today);
+  const [showDate, setShowDate] = useState(false);
   const [statusTouched, setStatusTouched] = useState(!!existing || !!init?.status);
   const [status, setStatus] = useState<'paid' | 'pending'>(existing?.status ?? init?.status ?? 'paid');
   const [installments, setInstallments] = useState(init?.installments ?? 1);
@@ -89,16 +107,30 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
   const [invoiceRef, setInvoiceRef] = useState<string | null>(existing?.invoice_ref ?? init?.invoice_ref ?? null);
   const [learn] = useState(init?.keyword ?? null);
   const [error, setError] = useState('');
+  const [shake, setShake] = useState(0);
   const [busy, setBusy] = useState(false);
 
   const account = s.accounts.find((a) => a.id === accountId);
   const toAccount = s.accounts.find((a) => a.id === toId);
   const isCard = account?.kind === 'credit';
-  const cats = s.categories.filter((c) => !c.archived && c.kind === (kind === 'income' ? 'income' : 'expense'));
+  const catKind = kind === 'income' ? 'income' : 'expense';
+  // categorias que você mais usa aparecem primeiro
+  const usage = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of s.transactions.slice(-500)) if (t.category_id && t.kind === catKind) m.set(t.category_id, (m.get(t.category_id) ?? 0) + 1);
+    return m;
+  }, [s.transactions, catKind]);
+  const cats = s.categories
+    .filter((c) => !c.archived && c.kind === catKind)
+    .sort((a, b) => (usage.get(b.id) ?? 0) - (usage.get(a.id) ?? 0) || a.name.localeCompare(b.name));
   const value = parseAmount(amount);
   const cardMonths = toAccount?.kind === 'credit' ? invoiceMonths(toAccount, s.transactions, s.today) : [];
   const effStatus = isCard && kind !== 'transfer' ? 'paid' : status;
   const canInstall = !existing && kind !== 'transfer';
+  const yesterday = addDays(s.today, -1);
+  const dateMode: DateMode = showDate ? 'other' : date === s.today ? 'today' : date === yesterday ? 'yest' : 'other';
+
+  const fail = (msg: string) => { setError(msg); setShake((n) => n + 1); };
 
   const addTag = () => {
     const t = norm(tagInput.replace(/^#/, '').trim());
@@ -111,10 +143,20 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
     if (!statusTouched) setStatus(d > s.today ? 'pending' : 'paid');
   };
 
+  // sugere a categoria enquanto a pessoa digita a descrição (até ela escolher uma)
+  const onDescription = (text: string) => {
+    setDescription(text);
+    if (categoryTouched || kind === 'transfer') return;
+    const words = norm(text).split(/\s+/).filter(Boolean);
+    const hit = cats.find((c) => words.some((w) => c.keywords.map(norm).includes(w) || norm(c.name) === w));
+    if (hit) setCategoryId(hit.id);
+  };
+
   const submit = async () => {
-    if (!value) return setError('Informe um valor maior que zero.');
-    if (!accountId) return setError('Crie uma conta primeiro (aba Mais → Contas).');
-    if (kind === 'transfer' && (!toId || toId === accountId)) return setError('Escolha uma conta de destino diferente da origem.');
+    if (busy) return;
+    if (!value) return fail('Informe um valor maior que zero.');
+    if (!accountId) return fail('Crie uma conta primeiro (aba Mais → Contas e cartões).');
+    if (kind === 'transfer' && (!toId || toId === accountId)) return fail('Escolha uma conta de destino diferente da origem.');
     setBusy(true);
     setError('');
     try {
@@ -144,7 +186,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
       }
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Não consegui salvar.');
+      fail(e instanceof Error ? e.message : 'Não consegui salvar.');
       setBusy(false);
     }
   };
@@ -160,27 +202,39 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
     onClose();
     await s.removeWithUndo('transactions', group, `${group.length} parcelas apagadas`);
   };
+  const onEnter = (e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); void submit(); } };
 
   return (
-    <Sheet title={existing ? 'Editar lançamento' : kind === 'income' ? 'Nova receita' : kind === 'transfer' ? 'Nova transferência' : 'Nova despesa'} onClose={onClose}>
-      <Segmented<TxKind> value={kind} onChange={(k) => { setKind(k); setCategoryId(null); }}
+    <Sheet title={existing ? 'Editar lançamento' : kind === 'income' ? 'Nova receita' : kind === 'transfer' ? 'Nova transferência' : 'Nova despesa'} onClose={onClose}
+      footer={
+        <>
+          {error && <p key={shake} className="error-text shake" role="alert">{error}</p>}
+          <div className="foot-actions">
+            {existing && <button className="btn danger icon" onClick={del} aria-label="Apagar lançamento"><Trash2 size={19} /></button>}
+            <button className="btn primary" onClick={submit} disabled={busy}>{busy ? 'Salvando…' : 'Salvar'}</button>
+          </div>
+        </>
+      }>
+      <Segmented<TxKind> value={kind} onChange={(k) => { setKind(k); setCategoryId(null); setCategoryTouched(false); }}
         options={[{ id: 'expense', label: 'Despesa' }, { id: 'income', label: 'Receita' }, { id: 'transfer', label: 'Transferência' }]} />
       <div className="amount-wrap">
         <small>Valor (R$)</small>
-        <input className="amount-input" inputMode="decimal" placeholder="0,00" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Valor" autoFocus={!existing} />
+        <input className="amount-input" inputMode="decimal" placeholder="0,00" value={amount} onChange={(e) => setAmount(e.target.value)}
+          onKeyDown={onEnter} aria-label="Valor" autoFocus={!existing} enterKeyHint="done" />
         {installments > 1 && value ? <small>{installments}x de {formatBRL(value / installments)}</small> : null}
       </div>
 
       {kind !== 'transfer' && (
         <Field label="Descrição">
-          <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex.: Mercado" />
+          <input className="input" value={description} onChange={(e) => onDescription(e.target.value)} onKeyDown={onEnter} placeholder="Ex.: Mercado" enterKeyHint="done" />
         </Field>
       )}
       {kind !== 'transfer' && (
         <Field label="Categoria">
           <div className="chips">
             {cats.map((c) => (
-              <button key={c.id} type="button" className={`chip ${categoryId === c.id ? 'active' : ''}`} onClick={() => setCategoryId(categoryId === c.id ? null : c.id)}>
+              <button key={c.id} type="button" className={`chip ${categoryId === c.id ? 'active' : ''}`} aria-pressed={categoryId === c.id}
+                onClick={() => { setCategoryTouched(true); setCategoryId(categoryId === c.id ? null : c.id); }}>
                 <CategoryIcon name={c.icon} size={16} /> {c.name}
               </button>
             ))}
@@ -189,17 +243,30 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
       )}
 
       <Field label={kind === 'transfer' ? 'De' : 'Conta'}>
-        <select className="select" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-          {live.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </select>
+        {live.length <= 4 ? (
+          <div className="chips">
+            {live.map((a) => (
+              <button key={a.id} type="button" className={`chip ${accountId === a.id ? 'active' : ''}`} aria-pressed={accountId === a.id} onClick={() => setAccountId(a.id)}>
+                <span className="dot-color" style={{ background: a.color }} /> {a.name}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <select className="select" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+            {live.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        )}
       </Field>
       {kind === 'transfer' && (
         <>
           <Field label="Para">
-            <select className="select" value={toId} onChange={(e) => { setToId(e.target.value); setInvoiceRef(null); }}>
-              <option value="">Escolha…</option>
-              {live.filter((a) => a.id !== accountId).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
+            <div className="chips">
+              {live.filter((a) => a.id !== accountId).map((a) => (
+                <button key={a.id} type="button" className={`chip ${toId === a.id ? 'active' : ''}`} aria-pressed={toId === a.id} onClick={() => { setToId(a.id); setInvoiceRef(null); }}>
+                  <span className="dot-color" style={{ background: a.color }} /> {a.name}
+                </button>
+              ))}
+            </div>
           </Field>
           {cardMonths.length > 0 && toAccount && (
             <Field label="Pagamento da fatura de">
@@ -213,7 +280,12 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
       )}
 
       <Field label="Data">
-        <input className="input" type="date" value={date} onChange={(e) => e.target.value && onDate(e.target.value)} />
+        <Segmented<DateMode> value={dateMode} onChange={(m) => {
+          if (m === 'today') { onDate(s.today); setShowDate(false); }
+          else if (m === 'yest') { onDate(yesterday); setShowDate(false); }
+          else setShowDate(true);
+        }} options={[{ id: 'today', label: 'Hoje' }, { id: 'yest', label: 'Ontem' }, { id: 'other', label: 'Outra data' }]} />
+        {dateMode === 'other' && <input className="input" type="date" value={date} onChange={(e) => e.target.value && onDate(e.target.value)} aria-label="Data do lançamento" />}
       </Field>
 
       {!(isCard && kind !== 'transfer') && (
@@ -226,7 +298,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
       {canInstall && (
         <Field label="Parcelas">
           <div className="row-between">
-            <div className="seg" style={{ width: 150 }}>
+            <div className="seg" style={{ width: 168 }}>
               <button type="button" onClick={() => setInstallments(Math.max(1, installments - 1))} aria-label="Menos parcelas">−</button>
               <button type="button" className="active" style={{ cursor: 'default' }}>{installments}x</button>
               <button type="button" onClick={() => setInstallments(Math.min(48, installments + 1))} aria-label="Mais parcelas">+</button>
@@ -249,13 +321,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
       <Field label="Observação">
         <textarea className="textarea" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" />
       </Field>
-
-      {error && <p className="error-text" role="alert">{error}</p>}
-      <div className="form-actions">
-        <button className="btn primary block" onClick={submit} disabled={busy}>{busy ? 'Salvando…' : 'Salvar'}</button>
-        {existing && <button className="btn danger block" onClick={del}><Trash2 size={18} /> Apagar</button>}
-        {existing?.installment_group && <button className="btn danger block" onClick={delGroup}>Apagar todas as parcelas</button>}
-      </div>
+      {existing?.installment_group && <button className="btn danger block" onClick={delGroup}>Apagar todas as parcelas</button>}
     </Sheet>
   );
 }
@@ -264,6 +330,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
 
 function AccountEditor({ id, onClose }: { id?: string; onClose: () => void }) {
   const s = useStore();
+  const confirm = useConfirm();
   const existing = id ? s.accounts.find((a) => a.id === id) : undefined;
   const [name, setName] = useState(existing?.name ?? '');
   const [kind, setKind] = useState<AccountKind>(existing?.kind ?? 'checking');
@@ -307,18 +374,26 @@ function AccountEditor({ id, onClose }: { id?: string; onClose: () => void }) {
   const del = async () => {
     if (!existing) return;
     const n = s.transactions.filter((t) => t.account_id === existing.id || t.to_account_id === existing.id).length;
-    if (!window.confirm(`Apagar "${existing.name}" e seus ${n} lançamentos? Isso não pode ser desfeito.`)) return;
+    const ok = await confirm({ title: 'Apagar conta?', danger: true, confirmLabel: 'Apagar tudo',
+      message: `"${existing.name}" e seus ${n} lançamento${n === 1 ? '' : 's'} serão apagados para sempre. Se só quer parar de usar a conta, prefira arquivar.` });
+    if (!ok) return;
     await s.remove('accounts', [existing.id]);
     onClose();
   };
 
   return (
-    <Sheet title={existing ? 'Editar conta' : 'Nova conta'} onClose={onClose}>
+    <Sheet title={existing ? 'Editar conta' : 'Nova conta'} onClose={onClose}
+      footer={
+        <>
+          {error && <p key={error} className="error-text shake" role="alert">{error}</p>}
+          <div className="foot-actions"><button className="btn primary" onClick={submit} disabled={busy}>Salvar</button></div>
+        </>
+      }>
       {!existing && (
         <Segmented<AccountKind> value={kind} onChange={setKind}
           options={[{ id: 'checking', label: 'Conta' }, { id: 'credit', label: 'Cartão' }, { id: 'investment', label: 'Investimento' }]} />
       )}
-      <Field label="Nome"><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={kind === 'credit' ? 'Ex.: Nubank Cartão' : kind === 'investment' ? 'Ex.: Tesouro Selic' : 'Ex.: Nubank Conta'} /></Field>
+      <Field label="Nome"><input className="input" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void submit()} placeholder={kind === 'credit' ? 'Ex.: Nubank Cartão' : kind === 'investment' ? 'Ex.: Tesouro Selic' : 'Ex.: Nubank Conta'} /></Field>
       <Field label={kind === 'investment' ? 'Saldo atual (R$)' : kind === 'credit' ? 'Saldo inicial do cartão (R$) — normalmente 0' : 'Saldo inicial (R$)'}>
         <input className="input" inputMode="decimal" value={initial} onChange={(e) => setInitial(e.target.value)} placeholder="0,00" />
       </Field>
@@ -339,12 +414,12 @@ function AccountEditor({ id, onClose }: { id?: string; onClose: () => void }) {
       {kind === 'checking' && (
         <div className="row-field"><span>Conta padrão (campo rápido)</span><Switch checked={isDefault} onChange={setIsDefault} label="Conta padrão" /></div>
       )}
-      {error && <p className="error-text" role="alert">{error}</p>}
-      <div className="form-actions">
-        <button className="btn primary block" onClick={submit} disabled={busy}>Salvar</button>
-        {existing && <button className="btn block" onClick={archive}>{existing.archived ? 'Reativar conta' : 'Arquivar conta'}</button>}
-        {existing && <button className="btn danger block" onClick={del}><Trash2 size={18} /> Apagar conta</button>}
-      </div>
+      {existing && (
+        <div className="stack" style={{ marginTop: 8 }}>
+          <button className="btn block" onClick={archive}>{existing.archived ? 'Reativar conta' : 'Arquivar conta'}</button>
+          <button className="btn danger block" onClick={del}><Trash2 size={18} /> Apagar conta</button>
+        </div>
+      )}
     </Sheet>
   );
 }
@@ -353,6 +428,7 @@ function AccountEditor({ id, onClose }: { id?: string; onClose: () => void }) {
 
 function CategoryEditor({ id, kind: initKind, onClose }: { id?: string; kind?: 'expense' | 'income'; onClose: () => void }) {
   const s = useStore();
+  const confirm = useConfirm();
   const existing = id ? s.categories.find((c) => c.id === id) : undefined;
   const [name, setName] = useState(existing?.name ?? '');
   const [kind, setKind] = useState<'expense' | 'income'>(existing?.kind ?? initKind ?? 'expense');
@@ -378,13 +454,22 @@ function CategoryEditor({ id, kind: initKind, onClose }: { id?: string; kind?: '
     }
   };
   const del = async () => {
-    if (!existing || !window.confirm(`Apagar a categoria "${existing.name}"? Os lançamentos ficam sem categoria.`)) return;
+    if (!existing) return;
+    const ok = await confirm({ title: 'Apagar categoria?', danger: true, confirmLabel: 'Apagar',
+      message: `Os lançamentos da categoria "${existing.name}" continuam, mas ficam sem categoria.` });
+    if (!ok) return;
     await s.remove('categories', [existing.id]);
     onClose();
   };
 
   return (
-    <Sheet title={existing ? 'Editar categoria' : 'Nova categoria'} onClose={onClose}>
+    <Sheet title={existing ? 'Editar categoria' : 'Nova categoria'} onClose={onClose}
+      footer={
+        <>
+          {error && <p key={error} className="error-text shake" role="alert">{error}</p>}
+          <div className="foot-actions"><button className="btn primary" onClick={submit}>Salvar</button></div>
+        </>
+      }>
       {!existing && <Segmented value={kind} onChange={setKind} options={[{ id: 'expense', label: 'Despesa' }, { id: 'income', label: 'Receita' }]} />}
       <Field label="Nome"><input className="input" value={name} onChange={(e) => setName(e.target.value)} /></Field>
       {kind === 'expense' && (
@@ -405,11 +490,7 @@ function CategoryEditor({ id, kind: initKind, onClose }: { id?: string; kind?: '
           {COLORS.map((c) => <button key={c} type="button" aria-label={`Cor ${c}`} className={`swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />)}
         </div>
       </Field>
-      {error && <p className="error-text" role="alert">{error}</p>}
-      <div className="form-actions">
-        <button className="btn primary block" onClick={submit}>Salvar</button>
-        {existing && <button className="btn danger block" onClick={del}><Trash2 size={18} /> Apagar categoria</button>}
-      </div>
+      {existing && <button className="btn danger block" onClick={del}><Trash2 size={18} /> Apagar categoria</button>}
     </Sheet>
   );
 }
@@ -459,7 +540,13 @@ function RecurrenceEditor({ id, onClose }: { id?: string; onClose: () => void })
   };
 
   return (
-    <Sheet title={existing ? 'Editar recorrência' : 'Nova recorrência'} onClose={onClose}>
+    <Sheet title={existing ? 'Editar recorrência' : 'Nova recorrência'} onClose={onClose}
+      footer={
+        <>
+          {error && <p key={error} className="error-text shake" role="alert">{error}</p>}
+          <div className="foot-actions"><button className="btn primary" onClick={submit}>Salvar</button></div>
+        </>
+      }>
       <Segmented value={kind} onChange={(k) => { setKind(k); setCategoryId(null); }} options={[{ id: 'expense', label: 'Despesa' }, { id: 'income', label: 'Receita' }]} />
       <Field label="Nome"><input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex.: Aluguel, Netflix" /></Field>
       <Field label="Valor mensal (R$)"><input className="input" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" /></Field>
@@ -483,11 +570,7 @@ function RecurrenceEditor({ id, onClose }: { id?: string; onClose: () => void })
       </div>
       <Field label="Termina em (opcional)"><input className="input" type="month" value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
       <div className="row-field"><span>Ativa</span><Switch checked={active} onChange={setActive} label="Ativa" /></div>
-      {error && <p className="error-text" role="alert">{error}</p>}
-      <div className="form-actions">
-        <button className="btn primary block" onClick={submit}>Salvar</button>
-        {existing && <button className="btn danger block" onClick={del}><Trash2 size={18} /> Apagar</button>}
-      </div>
+      {existing && <button className="btn danger block" onClick={del}><Trash2 size={18} /> Apagar recorrência</button>}
     </Sheet>
   );
 }
@@ -512,12 +595,16 @@ function SnapshotEditor({ accountId, onClose }: { accountId: string; onClose: ()
     }
   };
   return (
-    <Sheet title="Atualizar saldo" onClose={onClose}>
+    <Sheet title="Atualizar saldo" onClose={onClose}
+      footer={
+        <>
+          {error && <p key={error} className="error-text shake" role="alert">{error}</p>}
+          <div className="foot-actions"><button className="btn primary" onClick={submit}>Salvar</button></div>
+        </>
+      }>
       <p className="muted">Quanto tem hoje em <b>{acc?.name}</b>? O Bolso guarda o histórico para montar o gráfico do patrimônio.</p>
       <Field label="Saldo (R$)"><input className="input" inputMode="decimal" value={balance} onChange={(e) => setBalance(e.target.value)} autoFocus placeholder="0,00" /></Field>
       <Field label="Data"><input className="input" type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} /></Field>
-      {error && <p className="error-text" role="alert">{error}</p>}
-      <button className="btn primary block" onClick={submit}>Salvar</button>
     </Sheet>
   );
 }

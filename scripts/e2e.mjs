@@ -11,7 +11,7 @@ page.on('console', (m) => m.type() === 'error' && errors.push('console: ' + m.te
 
 let failed = 0;
 const check = (name, ok, extra = '') => { console.log(ok ? 'ok  ' : 'FAIL', name, ok ? '' : extra); if (!ok) failed++; };
-const shot = (n) => page.screenshot({ path: `${shots}/${n}.png`, fullPage: false });
+const shot = async (n) => { await page.waitForTimeout(750); await page.screenshot({ path: `${shots}/${n}.png`, fullPage: false }); };
 const text = (sel) => page.locator(sel).first().innerText();
 const quick = async (t) => { await page.fill('input[aria-label="Lançamento rápido"]', t); await page.press('input[aria-label="Lançamento rápido"]', 'Enter'); };
 
@@ -61,7 +61,7 @@ await page.evaluate(() => { history.pushState({}, '', '/'); dispatchEvent(new Po
 
 // páginas
 for (const [path, name, expect] of [
-  ['/lancamentos', '03-lancamentos', 'Lançamentos'], ['/orcamentos', '04-orcamento', 'Orçamento'], ['/insights', '05-insights', 'Insights'],
+  ['/lancamentos', '03-lancamentos', 'Extrato'], ['/orcamentos', '04-orcamento', 'Orçamento'], ['/insights', '05-insights', 'Insights'],
   ['/mais', '06-mais', 'Mais'], ['/contas', '07-contas', 'Contas e cartões'], ['/categorias', '08-categorias', 'Categorias'],
   ['/recorrencias', '09-recorrencias', 'Recorrências'], ['/notificacoes', '10-notificacoes', 'Notificações'],
 ]) {
@@ -112,24 +112,121 @@ await page.evaluate(() => { history.pushState({}, '', '/orcamentos'); dispatchEv
 await page.waitForTimeout(200);
 await shot('18-orcamento-escuro');
 
+
+// ── novidades de UX (modo demo com dados de exemplo)
+const go = async (path) => { await page.evaluate((p) => { history.pushState({}, '', p); dispatchEvent(new PopStateEvent('popstate')); }, path); await page.waitForTimeout(450); };
+await go('/');
+await page.click('nav a[href="/lancamentos"]'); await page.waitForTimeout(500);
+check('barra: indicador desliza para a aba ativa (--i = 1)', (await page.locator('nav.nav').evaluate((n) => n.style.getPropertyValue('--i'))) === '1');
+check('barra: todas as abas têm rótulo visível', (await page.locator('nav.nav a span').evaluateAll((els) => els.every((e) => getComputedStyle(e).display !== 'none' && e.textContent.trim()))));
+
+// pagar com um toque
+const payBtn = page.locator('.pay-btn').first();
+check('pendentes mostram botão "Pagar" na própria linha', await payBtn.count() > 0);
+const pendingBefore = await page.locator('.pay-btn').count();
+await payBtn.click();
+await page.waitForSelector('.toast:has-text("Marcado como")');
+await page.waitForTimeout(300);
+check('pagar com um toque remove o botão da linha', (await page.locator('.pay-btn').count()) === pendingBefore - 1);
+await page.click('.toast button'); await page.waitForTimeout(300);
+check('desfazer volta a ficar pendente', (await page.locator('.pay-btn').count()) === pendingBefore);
+
+// formulário: sugestão de categoria, atalho "Ontem", Enter salva, rodapé fixo
+await page.click('button[aria-label="Novo lançamento"]');
+await page.waitForSelector('.sheet');
+await page.fill('.sheet input[placeholder="Ex.: Mercado"]', 'mercado do bairro');
+check('categoria sugerida pela descrição (Alimentação)', (await page.locator('.sheet .chip[aria-pressed="true"]:has-text("Alimentação")').count()) === 1);
+await page.click('.sheet .seg button:has-text("Ontem")');
+check('atalho "Ontem" não abre campo de data', (await page.locator('.sheet input[type="date"]').count()) === 0);
+const footVisible = await page.locator('.sheet-foot .btn.primary').isVisible();
+check('botão Salvar sempre visível (rodapé fixo)', footVisible);
+await page.press('.sheet .amount-input', 'Enter');
+await page.waitForTimeout(150);
+check('Enter sem valor mostra erro', await page.locator('.sheet-foot .error-text').count() === 1);
+await page.fill('.sheet .amount-input', '12,5');
+await page.press('.sheet .amount-input', 'Enter');
+await page.waitForSelector('.sheet', { state: 'detached' });
+check('Enter com valor salva e fecha o painel', true);
+
+// arrastar o painel para baixo fecha
+await page.click('button[aria-label="Novo lançamento"]');
+await page.waitForSelector('.sheet');
+await page.waitForTimeout(450);
+const hb = await page.locator('.sheet-head h2').boundingBox();
+await page.mouse.move(hb.x + hb.width / 2, hb.y + 5);
+await page.mouse.down();
+await page.mouse.move(hb.x + hb.width / 2, hb.y + 200, { steps: 8 });
+await page.mouse.up();
+await page.waitForSelector('.sheet', { state: 'detached', timeout: 3000 });
+check('arrastar o painel para baixo fecha', true);
+
+// Esc fecha
+await page.click('button[aria-label="Novo lançamento"]'); await page.waitForSelector('.sheet');
+await page.keyboard.press('Escape');
+await page.waitForSelector('.sheet', { state: 'detached', timeout: 3000 });
+check('Esc fecha o painel', true);
+
+// confirmação de exclusão no estilo do app (não o confirm do navegador)
+let nativeDialog = false;
+page.on('dialog', async (d) => { nativeDialog = true; await d.dismiss(); });
+await go('/contas');
+await page.click('.item:has-text("Tesouro Selic")'); await page.waitForTimeout(400);
+await page.click('button[aria-label="Editar conta"]'); await page.waitForSelector('.sheet');
+await page.click('.sheet button:has-text("Apagar conta")');
+await page.waitForSelector('.sheet[aria-label="Apagar conta?"]');
+check('exclusão pede confirmação em painel do app', !nativeDialog);
+await shot('23-confirmacao');
+await page.click('.sheet[aria-label="Apagar conta?"] button:has-text("Cancelar")');
+await page.waitForTimeout(500);
+check('cancelar mantém a conta', (await page.locator('.sheet[aria-label="Editar conta"]').count()) === 1);
+await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+
+// ajuda do campo rápido
+await go('/');
+await page.click('button[aria-label="Como usar o lançamento rápido"]');
+await page.waitForSelector('.sheet[aria-label="Lançamento rápido"]');
+await shot('24-ajuda-rapido');
+await page.click('.help-ex:has-text("uber 23,90")');
+await page.waitForTimeout(500);
+check('exemplo da ajuda preenche o campo rápido', (await page.inputValue('input[aria-label="Lançamento rápido"]')) === 'uber 23,90');
+
+// contraste mínimo do texto secundário (WCAG AA) no tema claro
+const ratio = await page.evaluate(() => {
+  const lum = (c) => { const [r, g, b] = c.match(/\d+/g).slice(0, 3).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const fg = getComputedStyle(document.querySelector('.hint')).color, bg = getComputedStyle(document.querySelector('.card')).backgroundColor;
+  const [a, b] = [lum(fg), lum(bg)].sort((x, y) => y - x); return (a + 0.05) / (b + 0.05);
+});
+check(`contraste do texto secundário ≥ 4.5 (medido ${ratio.toFixed(2)})`, ratio >= 4.5);
+
+// modo "reduzir movimento": tudo continua funcionando, sem animações
+const calm = await (await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' })).newPage();
+const calmErrors = []; calm.on('pageerror', (e) => calmErrors.push(e.message));
+await calm.goto(`${url}/?demo`); await calm.waitForSelector('.hero');
+const dur = await calm.locator('.screen > *').first().evaluate((e) => getComputedStyle(e).animationDuration);
+check('reduzir movimento: animações desligadas', parseFloat(dur) < 0.01, dur);
+check('reduzir movimento: sem erros', calmErrors.length === 0);
+
 // ── começar do zero (primeiro acesso, sem dados de exemplo)
 const fresh = await (await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'pt-BR' })).newPage();
 fresh.on('pageerror', (e) => errors.push('fresh pageerror: ' + e.message));
 fresh.on('console', (m) => m.type() === 'error' && errors.push('fresh console: ' + m.text()));
 await fresh.goto(url);
 await fresh.waitForSelector('.hero');
-check('zero: pede para criar a primeira conta', await fresh.locator('text=Comece criando sua primeira conta').count() === 1);
+check('zero: mostra "Primeiros passos" com 3 etapas', await fresh.locator('.step').count() === 3);
 await fresh.screenshot({ path: `${shots}/19-zero.png` });
-await fresh.click('button:has-text("Criar conta")');
+await fresh.click('.step:has-text("Crie sua primeira conta")');
 await fresh.fill('.sheet input[placeholder^="Ex.: Nubank"]', 'Itaú Conta');
 await fresh.fill('.sheet input[inputmode="decimal"]', '1.500,00');
 await fresh.click('.sheet .btn.primary');
 await fresh.waitForSelector('.sheet', { state: 'detached' });
+await fresh.waitForTimeout(800);
 check('zero: conta criada e saldo refletido', (await fresh.locator('.hero').innerText()).includes('1.500'), await fresh.locator('.hero').innerText());
+check('zero: etapa 1 marcada como concluída', await fresh.locator('.step.done').count() === 1);
 // categorias padrão foram criadas → campo rápido funciona na hora
 await fresh.fill('input[aria-label="Lançamento rápido"]', '200 mercado');
 await fresh.press('input[aria-label="Lançamento rápido"]', 'Enter');
 await fresh.waitForSelector('.toast:has-text("Alimentação")');
+await fresh.waitForTimeout(800);
 check('zero: categorias padrão e campo rápido', (await fresh.locator('.hero').innerText()).includes('1.300'), await fresh.locator('.hero').innerText());
 // recorrência gera o lançamento do mês imediatamente
 await fresh.evaluate(() => { history.pushState({}, '', '/recorrencias'); dispatchEvent(new PopStateEvent('popstate')); });
@@ -141,7 +238,7 @@ await fresh.click('.sheet .btn.primary');
 await fresh.waitForSelector('.sheet', { state: 'detached' });
 await fresh.evaluate(() => { history.pushState({}, '', '/lancamentos'); dispatchEvent(new PopStateEvent('popstate')); });
 await fresh.waitForSelector('.item:has-text("Academia")');
-check('zero: recorrência gerou o lançamento do mês (pendente)', await fresh.locator('.item:has-text("Academia"):has-text("pendente")').count() === 1);
+check('zero: recorrência gerou o lançamento do mês (pendente)', await fresh.locator('.item:has-text("Academia") .pay-btn').count() === 1);
 await fresh.screenshot({ path: `${shots}/20-zero-lancamentos.png` });
 // recarregar não duplica a recorrência
 await fresh.reload(); // continua em /lancamentos
