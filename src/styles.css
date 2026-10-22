@@ -64,7 +64,7 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body, #root { height: 100%; }
+html, body, #root { min-height: 100%; }
 body {
   margin: 0;
   background: var(--bg);
@@ -430,10 +430,16 @@ button, a, [role='button'], input, select, label, summary { touch-action: manipu
 button, [role='button'], .nav, .pill, .chip, .seg { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 
 /* ======================= sem balanço lateral no celular ======================= */
-html, body { overflow-x: hidden; overflow-x: clip; overscroll-behavior-x: none; max-width: 100%; }
+/* Não usar overflow-x em html/body: no Safari do iPhone isso quebra position: fixed (a barra inferior sobe junto com a rolagem).
+   O corte lateral fica só no conteúdo (.app/.page). */
+html { overscroll-behavior-x: none; }
+html, body { max-width: 100%; }
 body { touch-action: pan-y pinch-zoom; }
 .app, .page { overflow-x: clip; }
 /* listas que rolam de lado não repassam o gesto para a página */
 .carousel, .pills { overscroll-behavior-x: contain; touch-action: pan-x pan-y pinch-zoom; }
 .sheet, .sheet-body { overscroll-behavior: contain; }
 .sheet-body { overflow-x: hidden; }
+
+/* faixa sólida atrás do relógio/bateria do iPhone (só existe no app instalado; no navegador a área é 0) */
+.status-fill { position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top); background: var(--bg); z-index: 45; pointer-events: none; }
