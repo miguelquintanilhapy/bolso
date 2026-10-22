@@ -48,3 +48,31 @@ out = out.crop(box)
 out.thumbnail((960, 960), Image.LANCZOS)
 out.save(f"{OUT}/logo.png", optimize=True)
 print("logo", out.size)
+
+# ---- imagem de pré-visualização do link (WhatsApp, iMessage, Telegram…): 1200x630 ----
+from PIL import ImageFont
+
+OG_W, OG_H = 1200, 630
+og = Image.new("RGB", (OG_W, OG_H), (242, 243, 245))
+lg = Image.open(f"{OUT}/logo.png").convert("RGBA")
+lw = 660
+lg = lg.resize((lw, round(lg.height * lw / lg.width)), Image.LANCZOS)
+tagline = "Seu controle financeiro, só seu."
+try:
+    font = ImageFont.truetype("/usr/share/fonts/opentype/inter/Inter-Medium.otf", 40)
+except OSError:
+    font = None
+gap = 34
+text_h = 0
+if font:
+    box = ImageDraw.Draw(og).textbbox((0, 0), tagline, font=font)
+    text_h = box[3] - box[1]
+block_h = lg.height + (gap + text_h if font else 0)
+top = (OG_H - block_h) // 2
+og.paste(lg, ((OG_W - lg.width) // 2, top), lg)
+if font:
+    d = ImageDraw.Draw(og)
+    tw = d.textlength(tagline, font=font)
+    d.text(((OG_W - tw) / 2, top + lg.height + gap - box[1]), tagline, font=font, fill=(104, 109, 118))
+og.save(f"{OUT}/og-image.png", optimize=True)
+print("og-image", og.size)

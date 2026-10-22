@@ -2,12 +2,18 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// endereço público do site, usado nas etiquetas de pré-visualização (precisa ser absoluto)
+const siteUrl = (
+  process.env.SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : 'https://bolso-delta.vercel.app')
+).replace(/\/$/, '');
 const build = (process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? '').slice(0, 7) || 'dev';
 
 export default defineConfig({
   define: { __BUILD_ID__: JSON.stringify(build) },
   plugins: [
     react(),
+    { name: 'site-url', transformIndexHtml: (html: string) => html.replaceAll('__SITE_URL__', siteUrl) },
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: false,
@@ -29,7 +35,7 @@ export default defineConfig({
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: { navigateFallback: '/index.html', globPatterns: ['**/*.{js,css,html,svg,png,woff2}'] },
+      workbox: { navigateFallback: '/index.html', globPatterns: ['**/*.{js,css,html,svg,png,woff2}'], globIgnores: ['og-image.png'] },
     }),
   ],
   test: { include: ['src/**/*.test.ts'] },
