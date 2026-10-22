@@ -202,7 +202,7 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
     toasts, toast, dismissToast, signOut: () => db.signOut(),
   };
 
-  if (!ready) return <div className="splash"><div className="splash-logo">Bolso</div></div>;
+  if (!ready) return <div className="splash"><img className="brand-logo" src="/logo.png" alt="Bolso" /></div>;
   if (error) return (
     <div className="splash">
       <div className="splash-error">

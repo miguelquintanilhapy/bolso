@@ -33,7 +33,7 @@ export default function App() {
       </div>
     </div>
   );
-  if (user === undefined) return <div className="splash"><div className="splash-logo">Bolso</div></div>;
+  if (user === undefined) return <div className="splash"><img className="brand-logo" src="/logo.png" alt="Bolso" /></div>;
   if (!user) return <Login />;
 
   return (

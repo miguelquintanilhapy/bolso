@@ -26,6 +26,7 @@ export function Login() {
       setError(
         /invalid login/i.test(m) ? 'E-mail ou senha incorretos.'
         : /não permitido|database error saving/i.test(m) ? 'Este e-mail não está autorizado a criar conta no Bolso.'
+        : /signups? (are|is) disabled/i.test(m) ? 'O cadastro está desligado no Supabase. Ative em Authentication → Sign In / Providers → "Allow new users to sign up" e confirme que o provedor Email está ligado.'
         : /already registered/i.test(m) ? 'Este e-mail já tem conta. Use "Entrar".'
         : m,
       );
@@ -37,7 +38,7 @@ export function Login() {
   return (
     <form className="login" onSubmit={submit}>
       <div>
-        <div className="brand">Bolso</div>
+        <img className="brand-logo" src="/logo.png" alt="Bolso" width={152} height={52} />
         <p className="sub">Seu controle financeiro, só seu.</p>
       </div>
       <div className="seg">
