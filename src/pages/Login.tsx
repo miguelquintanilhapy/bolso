@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { db } from '../data';
 
 export function Login() {
@@ -8,6 +9,7 @@ export function Login() {
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [busy, setBusy] = useState(false);
+  const [show, setShow] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,10 +48,14 @@ export function Login() {
         <button type="button" className={mode === 'up' ? 'active' : ''} onClick={() => setMode('up')}>Criar conta</button>
       </div>
       <div className="field"><label className="lbl" htmlFor="email">E-mail</label>
-        <input id="email" className="input" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+        <input id="email" className="input" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" autoFocus required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
       <div className="field"><label className="lbl" htmlFor="pw">Senha</label>
-        <input id="pw" className="input" type="password" autoComplete={mode === 'in' ? 'current-password' : 'new-password'} required value={password} onChange={(e) => setPassword(e.target.value)} /></div>
-      {error && <p className="error-text" role="alert">{error}</p>}
+        <div className="pw-wrap">
+          <input id="pw" className="input" type={show ? 'text' : 'password'} autoComplete={mode === 'in' ? 'current-password' : 'new-password'} required value={password} onChange={(e) => setPassword(e.target.value)} />
+          <button type="button" className="pw-toggle" onClick={() => setShow((v) => !v)} aria-label={show ? 'Ocultar senha' : 'Mostrar senha'}>{show ? <EyeOff size={19} /> : <Eye size={19} />}</button>
+        </div>
+        {mode === 'up' && <small className="muted" style={{ paddingLeft: 4 }}>Mínimo de 8 caracteres.</small>}</div>
+      {error && <p key={error} className="error-text shake" role="alert">{error}</p>}
       {info && <p className="banner">{info}</p>}
       <button className="btn primary block" disabled={busy}>{busy ? 'Aguarde…' : mode === 'in' ? 'Entrar' : 'Criar conta'}</button>
     </form>

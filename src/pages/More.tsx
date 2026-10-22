@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, ChevronRight, Download, Eye, FileJson, Landmark, LogOut, Palette, Repeat, Tags } from 'lucide-react';
+import { Bell, ChevronRight, Download, Eye, FileJson, Landmark, LogOut, Palette, Pencil, Repeat, Tags } from 'lucide-react';
 import { useStore } from '../store';
 import { Switch } from '../ui/common';
 import { usePrivacy } from '../ui/privacy';
+import { ModalSheet } from '../ui/Sheet';
+import { getName, setName } from '../lib/profile';
 import { download, transactionsToCSV } from '../lib/exports';
 import { todayISO } from '../lib/dates';
 
@@ -21,6 +23,10 @@ export function More() {
     try { return (localStorage.getItem(THEME_KEY) as Theme) || 'auto'; } catch { return 'auto'; }
   });
   const unread = s.notifications.filter((n) => !n.read).length;
+  const [name, setNameState] = useState(() => getName(s.user.email));
+  const [editName, setEditName] = useState(false);
+  const [draft, setDraft] = useState('');
+  const saveName = () => { setName(draft); setNameState(getName(s.user.email)); setEditName(false); s.toast('Nome atualizado'); };
   const pick = (t: Theme) => {
     setTheme(t);
     try { localStorage.setItem(THEME_KEY, t); } catch { /* sem armazenamento */ }
@@ -35,12 +41,19 @@ export function More() {
   return (
     <div className="screen">
       <div className="topbar"><h1 className="title" style={{ fontSize: 22 }}>Mais</h1></div>
-      <div className="card row-between">
+      <button className="card row-between" style={{ textAlign: 'left', width: '100%' }} onClick={() => { setDraft(name); setEditName(true); }} aria-label="Editar seu nome">
         <div className="row-between" style={{ justifyContent: 'flex-start' }}>
-          <div className="avatar">{(s.user.email[0] ?? 'B').toUpperCase()}</div>
-          <div><b>{s.user.email}</b><div className="muted" style={{ fontSize: 13 }}>{s.mode === 'demo' ? 'Modo demonstração' : 'Sincronizado'}</div></div>
+          <div className="avatar">{name[0]?.toUpperCase()}</div>
+          <div><b>{name}</b><div className="muted" style={{ fontSize: 13 }}>{s.user.email} · {s.mode === 'demo' ? 'Modo demonstração' : 'Sincronizado'}</div></div>
         </div>
-      </div>
+        <Pencil size={17} className="muted" />
+      </button>
+      <ModalSheet open={editName} onClose={() => setEditName(false)} title="Como quer ser chamado?"
+        footer={<div className="foot-actions"><button className="btn primary" onClick={saveName}>Salvar</button></div>}>
+        <div className="field"><span className="lbl">Seu nome</span>
+          <input className="input" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveName()} placeholder="Ex.: Miguel" autoFocus maxLength={30} /></div>
+        <p className="muted" style={{ fontSize: 13 }}>Aparece na saudação da tela inicial. Fica salvo só neste aparelho.</p>
+      </ModalSheet>
 
       <span className="group-title">Dinheiro</span>
       <div className="group">

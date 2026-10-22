@@ -23,6 +23,7 @@ App web instalável no iPhone (PWA), com banco e login no Supabase e hospedagem 
 - **Insights:** resumo do mês por categoria, evolução mensal e patrimônio ao longo do tempo.
 - **Notificações dentro do app:** orçamento, faturas e contas a vencer. (Push no iPhone fica para a v1.5.)
 - **Ocultar valores** (olho), tema claro/escuro, exportação CSV e backup JSON.
+- **Fluidez:** pagar/receber pendentes com um toque na própria linha, "Desfazer" em ações, formulário com rodapé fixo (Salvar sempre visível), categoria sugerida enquanto você digita, atalhos Hoje/Ontem, painéis que se arrastam para fechar, barra de navegação com indicador deslizante, animações de entrada e nos gráficos (desligadas automaticamente em "Reduzir movimento"), aviso de offline e atualização dos dados ao voltar para o app.
 
 ## Configurar
 

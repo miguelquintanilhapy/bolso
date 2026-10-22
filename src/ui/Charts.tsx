@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { compactBRL, formatBRL } from '../lib/money';
 import { useMaskedText, usePrivacy } from './privacy';
 
@@ -6,12 +6,14 @@ export function Ring({ ratio, level, size = 46, children }: { ratio: number; lev
   const r = size / 2 - 4;
   const c = 2 * Math.PI * r;
   const color = level === 'over' ? 'var(--red)' : level === 'warn' ? 'var(--amber)' : 'var(--green)';
+  const [shown, setShown] = useState(false);
+  useEffect(() => { const id = requestAnimationFrame(() => setShown(true)); return () => cancelAnimationFrame(id); }, []);
   return (
     <div className="ring-wrap" style={{ width: size, height: size }}>
       <svg viewBox={`0 0 ${size} ${size}`} aria-hidden>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--card-2)" strokeWidth="4" />
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="4" strokeLinecap="round"
-          strokeDasharray={`${c * Math.min(1, Math.max(0, ratio))} ${c}`} />
+          strokeDasharray={`${shown ? c * Math.min(1, Math.max(0, ratio)) : 0} ${c}`} style={{ transition: 'stroke-dasharray 0.9s cubic-bezier(0.22, 0.8, 0.24, 1) 0.1s' }} />
       </svg>
       {children}
     </div>
@@ -66,6 +68,7 @@ export function AreaChart({ points, title }: { points: Point[]; title: string })
     setHover(best);
   };
   const active = hover ?? points.length - 1;
+  const animKey = `${points.length}-${points[points.length - 1].value}`;
   const showTip = hover !== null;
   const gid = `g${title.replace(/\W/g, '')}`;
   const step = Math.ceil(points.length / 6);
@@ -87,8 +90,8 @@ export function AreaChart({ points, title }: { points: Point[]; title: string })
               <text className="axis" x={PAD.l - 6} y={geo.y(t) + 4} textAnchor="end">{hidden ? '••' : compactBRL(t)}</text>
             </g>
           ))}
-          <path d={area} fill={`url(#${gid})`} />
-          <path d={line} fill="none" stroke="var(--blue)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+          <path key={`a${animKey}`} className="area-fill" d={area} fill={`url(#${gid})`} />
+          <path key={`l${animKey}`} className="draw-line" pathLength={1} d={line} fill="none" stroke="var(--blue)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
           {points.map((p, i) => ((points.length - 1 - i) % step === 0) && (
             <text key={p.label} className="axis" x={geo.x(i)} y={H - 6} textAnchor={i === points.length - 1 ? 'end' : i === 0 ? 'start' : 'middle'}>{p.short}</text>
           ))}
@@ -115,6 +118,7 @@ export function BarChart({ groups, aLabel, bLabel, title }: { groups: Group[]; a
   const { hidden } = usePrivacy();
   const mask = useMaskedText();
   const max = Math.max(1, ...groups.flatMap((g) => [g.a, g.b]));
+  const animKey = `${groups.length}-${Math.round(max)}`;
   const ticks = niceTicks(0, max);
   const top = ticks[ticks.length - 1];
   const y = (v: number) => PAD.t + ((top - v) / top) * (H - PAD.t - PAD.b);
@@ -126,10 +130,10 @@ export function BarChart({ groups, aLabel, bLabel, title }: { groups: Group[]; a
     const px = ((clientX - rect.left) / rect.width) * W - PAD.l;
     setHover(Math.max(0, Math.min(groups.length - 1, Math.floor(px / slot))));
   };
-  const bar = (x: number, v: number, color: string) => {
+  const bar = (x: number, v: number, color: string, i: number) => {
     const h = Math.max(0, y(0) - y(v));
     const r = Math.min(4, h / 2, bw / 2);
-    return <path d={`M${x},${y(0)} v${-(h - r)} a${r},${r} 0 0 1 ${r},${-r} h${bw - 2 * r} a${r},${r} 0 0 1 ${r},${r} v${h - r} z`} fill={color} />;
+    return <path key={`${animKey}-${i}-${x}`} className="bar-grow" style={{ animationDelay: `${i * 55}ms` }} d={`M${x},${y(0)} v${-(h - r)} a${r},${r} 0 0 1 ${r},${-r} h${bw - 2 * r} a${r},${r} 0 0 1 ${r},${r} v${h - r} z`} fill={color} />;
   };
 
   return (
@@ -146,8 +150,8 @@ export function BarChart({ groups, aLabel, bLabel, title }: { groups: Group[]; a
             const cx = PAD.l + slot * i + slot / 2;
             return (
               <g key={g.label} opacity={hover === null || hover === i ? 1 : 0.45}>
-                {bar(cx - bw - 1, g.a, 'var(--blue)')}
-                {bar(cx + 1, g.b, 'var(--orange)')}
+                {bar(cx - bw - 1, g.a, 'var(--blue)', i)}
+                {bar(cx + 1, g.b, 'var(--orange)', i)}
                 <text className="axis" x={cx} y={H - 6} textAnchor="middle">{g.short}</text>
               </g>
             );

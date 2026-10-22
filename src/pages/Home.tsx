@@ -1,40 +1,81 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeftRight, ArrowUp, ArrowDown, Bell, ChevronRight, Eye, EyeOff, Landmark, Send, Wallet } from 'lucide-react';
+import { ArrowDown, ArrowLeftRight, ArrowUp, Bell, Check, ChevronRight, CircleHelp, Eye, EyeOff, Landmark, Receipt, Send, Share, TrendingDown, TrendingUp, Wallet, X } from 'lucide-react';
 import { useStore } from '../store';
 import { usePrivacy, Hero, Money } from '../ui/privacy';
-import { Empty, SectionTitle, TxRow } from '../ui/common';
+import { Empty, SectionTitle, TxRow, dayNet } from '../ui/common';
 import { useEditor } from '../ui/editors';
-import { activeAccounts, accountBalance, buildInstallments, buildInvoice, forecast, invoiceMonthOf, invoiceMonths, monthSummary, upcoming } from '../lib/finance';
+import { ModalSheet } from '../ui/Sheet';
+import { activeAccounts, accountBalance, buildInstallments, buildInvoice, forecast, invoiceMonthOf, invoiceMonths, monthSummary, netWorth, upcoming } from '../lib/finance';
 import { parseQuickEntry } from '../lib/quickEntry';
-import { dayLabel, monthName, monthOf, shortDate } from '../lib/dates';
+import { addMonthsToMonth, dayLabel, endOfMonth, monthName, monthOf, shortDate } from '../lib/dates';
+import { formatBRL } from '../lib/money';
+import { getName } from '../lib/profile';
 import type { NewTransaction, Account } from '../lib/types';
 
 const greeting = () => {
   const h = new Date().getHours();
-  return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+  return h < 5 ? 'Boa madrugada' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
 };
+
+const HINTS = ['50 mercado', 'uber 23,90', '+3000 salário', '300 tv 3x', 'ontem 12 padaria #casa'];
+const EXAMPLES: [string, string][] = [
+  ['50 mercado', 'Despesa de R$ 50 em Alimentação'],
+  ['uber 23,90', 'Despesa em Transporte'],
+  ['+3000 salário', 'Receita (o + indica entrada)'],
+  ['300 tv 3x cartão', 'Compra parcelada em 3x no cartão'],
+  ['ontem 12 padaria', 'Com outra data (ontem, 05/10…)'],
+  ['40 farmácia #mãe', 'Com tag'],
+];
+
+const LS = (k: string) => { try { return localStorage.getItem(k) === '1'; } catch { return false; } };
+const setLS = (k: string) => { try { localStorage.setItem(k, '1'); } catch { /* sem armazenamento */ } };
+
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => (navigator as unknown as { standalone?: boolean }).standalone === true || matchMedia('(display-mode: standalone)').matches;
 
 export function Home() {
   const s = useStore();
   const { hidden, toggle } = usePrivacy();
   const { newTx, openAccount } = useEditor();
   const nav = useNavigate();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState('');
+  const [hint, setHint] = useState(0);
+  const [help, setHelp] = useState(false);
+  const [stepsHidden, setStepsHidden] = useState(() => LS('bolso:steps-off'));
+  const [installHidden, setInstallHidden] = useState(() => LS('bolso:install-off'));
   const live = activeAccounts(s.accounts);
 
-  const worth = useMemo(() => live.reduce((sum, a) => sum + accountBalance(a, s.transactions, s.investment_snapshots, s.today), 0), [live, s.transactions, s.investment_snapshots, s.today]);
+  useEffect(() => {
+    if (text) return;
+    const t = setInterval(() => setHint((h) => (h + 1) % HINTS.length), 3200);
+    return () => clearInterval(t);
+  }, [text]);
+
+  const worth = useMemo(() => netWorth(s.accounts, s.transactions, s.investment_snapshots, s.today), [s.accounts, s.transactions, s.investment_snapshots, s.today]);
+  const lastMonthEnd = endOfMonth(addMonthsToMonth(monthOf(s.today), -1));
+  const worthBefore = useMemo(() => netWorth(s.accounts, s.transactions, s.investment_snapshots, lastMonthEnd), [s.accounts, s.transactions, s.investment_snapshots, lastMonthEnd]);
+  const delta = Math.round((worth - worthBefore) * 100) / 100;
   const fc = useMemo(() => forecast(s.accounts, s.transactions, s.investment_snapshots, s.today), [s.accounts, s.transactions, s.investment_snapshots, s.today]);
   const sum = useMemo(() => monthSummary(s.transactions, monthOf(s.today)), [s.transactions, s.today]);
   const soon = useMemo(() => upcoming(s.accounts, s.transactions, s.today, 7), [s.accounts, s.transactions, s.today]);
   const unread = s.notifications.filter((n) => !n.read).length;
   const recent = useMemo(
-    () => [...s.transactions].filter((t) => t.date <= s.today).sort((a, b) => b.date.localeCompare(a.date) || 0).slice(0, 8),
+    () => [...s.transactions].filter((t) => t.date <= s.today).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8),
     [s.transactions, s.today],
   );
   const groups = recent.reduce<Record<string, typeof recent>>((m, t) => ((m[t.date] ||= []).push(t), m), {});
-  const name = s.user.email.split('@')[0].replace(/[._-]+/g, ' ');
-  const initial = (name[0] ?? 'B').toUpperCase();
+  const name = getName(s.user.email);
+
+  const steps = [
+    { done: live.length > 0, title: 'Crie sua primeira conta', sub: 'Conta corrente, cartão ou investimento', run: () => openAccount() },
+    { done: s.transactions.length > 0, title: 'Faça seu primeiro lançamento', sub: 'Digite no campo rápido, ex.: 50 mercado', run: () => inputRef.current?.focus() },
+    { done: s.categories.some((c) => c.budget_limit), title: 'Defina um limite de orçamento', sub: 'Para o Bolso avisar quando você se aproximar', run: () => nav('/categorias') },
+  ];
+  const doneCount = steps.filter((x) => x.done).length;
+  const showSteps = !stepsHidden && doneCount < steps.length;
+  const showInstall = !installHidden && isIOS() && !isStandalone();
 
   const quick = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +84,7 @@ export function Home() {
     if (!r.ok) return s.toast(r.reason);
     const d = r.draft;
     const acc = s.accounts.find((a) => a.id === d.account_id) ?? s.accounts.find((a) => a.is_default && !a.archived) ?? live.find((a) => a.kind === 'checking') ?? live[0];
-    if (!acc) { s.toast('Crie uma conta primeiro (Mais → Contas e cartões).'); return; }
+    if (!acc) { s.toast('Crie uma conta primeiro.'); return; }
     // categoria desconhecida: abre o formulário já preenchido (e aprende a palavra ao salvar)
     if (!d.category_id) {
       setText('');
@@ -60,7 +101,7 @@ export function Home() {
       const created = await s.addTransactions(rows);
       setText('');
       const cat = s.categories.find((c) => c.id === d.category_id)?.name;
-      s.toast(`${d.kind === 'income' ? 'Entrada' : 'Saída'} de ${d.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} em ${cat} · ${acc.name}${d.installments > 1 ? ` · ${d.installments}x` : ''}`, {
+      s.toast(`${d.kind === 'income' ? 'Entrada' : 'Saída'} de ${formatBRL(d.amount)} em ${cat} · ${acc.name}${d.installments > 1 ? ` · ${d.installments}x` : ''}`, {
         label: 'Desfazer', run: () => void s.remove('transactions', created.map((t) => t.id)),
       });
     } catch (err) {
@@ -71,8 +112,8 @@ export function Home() {
   return (
     <div className="screen">
       <div className="topbar">
-        <div className="avatar" aria-hidden>{initial}</div>
-        <div className="greeting grow"><small>{greeting()}</small><b style={{ textTransform: 'capitalize' }}>{name}</b></div>
+        <Link to="/mais" className="avatar" aria-label="Seu perfil">{name[0]?.toUpperCase()}</Link>
+        <div className="greeting grow"><small>{greeting()}</small><b>{name}</b></div>
         <Link to="/notificacoes" className="icon-btn" aria-label={`Notificações${unread ? `, ${unread} não lidas` : ''}`}>
           <Bell size={21} />{unread > 0 && <span className="dot">{unread > 9 ? '9+' : unread}</span>}
         </Link>
@@ -80,12 +121,29 @@ export function Home() {
 
       {s.mode === 'demo' && <p className="banner">Modo demonstração: os dados ficam só neste aparelho. Conecte o Supabase para sincronizar.</p>}
 
+      {showInstall && (
+        <div className="install" role="note">
+          <Share size={22} style={{ flex: 'none', marginTop: 2 }} />
+          <div style={{ flex: 1 }}>
+            <b>Instale o Bolso no iPhone</b>
+            <p className="muted" style={{ fontSize: 13.5 }}>No Safari, toque em Compartilhar e depois em “Adicionar à Tela de Início”.</p>
+          </div>
+          <button className="x" aria-label="Dispensar" onClick={() => { setLS('bolso:install-off'); setInstallHidden(true); }}><X size={18} /></button>
+        </div>
+      )}
+
       <section className="card" aria-label="Patrimônio">
         <div className="balance-label">
           <span>Patrimônio total</span>
           <button className="eye" onClick={toggle} aria-label={hidden ? 'Mostrar valores' : 'Ocultar valores'}>{hidden ? <EyeOff size={18} /> : <Eye size={18} />}</button>
         </div>
         <Hero value={worth} />
+        {live.length > 0 && delta !== 0 && (
+          <p className={delta > 0 ? 'green' : 'red'} style={{ display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600, fontSize: 14, marginTop: 4 }}>
+            {delta > 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+            <Money value={Math.abs(delta)} /> <span style={{ fontWeight: 500 }}>neste mês</span>
+          </p>
+        )}
         <div className="mini-stats">
           <div className="mini"><span>Disponível agora</span><b><Money value={fc.liquidNow} /></b></div>
           <div className="mini"><span>Previsto p/ fim de {monthName(monthOf(s.today))}</span><b><Money value={fc.projected} /></b></div>
@@ -96,7 +154,9 @@ export function Home() {
       </section>
 
       <form className="quick" onSubmit={quick}>
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Lançamento rápido: 50 mercado" aria-label="Lançamento rápido" enterKeyHint="send" autoComplete="off" />
+        <input ref={inputRef} value={text} onChange={(e) => setText(e.target.value)} placeholder={`Digite: ${HINTS[hint]}`}
+          aria-label="Lançamento rápido" enterKeyHint="send" autoComplete="off" autoCapitalize="none" />
+        <button type="button" className="help" onClick={() => setHelp(true)} aria-label="Como usar o lançamento rápido"><CircleHelp size={20} /></button>
         <button className="send" disabled={!text.trim()} aria-label="Registrar"><Send size={18} /></button>
       </form>
 
@@ -107,14 +167,26 @@ export function Home() {
         <button className="action" onClick={() => nav('/contas')}><span className="circle"><Landmark size={22} /></span>Contas</button>
       </div>
 
-      {live.length === 0 ? (
-        <section className="card">
-          <Empty title="Comece criando sua primeira conta">
-            <p>Pode ser sua conta corrente, um cartão de crédito ou um investimento.</p>
-            <button className="btn primary" style={{ marginTop: 12 }} onClick={() => openAccount()}>Criar conta</button>
-          </Empty>
+      {showSteps && (
+        <section className="card" aria-label="Primeiros passos">
+          <div className="row-between">
+            <b style={{ fontSize: 17 }}>Primeiros passos</b>
+            <span className="progress-dots" aria-label={`${doneCount} de ${steps.length} concluídos`}>{steps.map((x, i) => <i key={i} className={x.done ? 'on' : ''} />)}</span>
+          </div>
+          <div className="steps">
+            {steps.map((x, i) => (
+              <button key={x.title} className={`step ${x.done ? 'done' : ''}`} onClick={x.run} disabled={x.done}>
+                <span className="n">{x.done ? <Check size={16} strokeWidth={3} className="check-pop" /> : i + 1}</span>
+                <span style={{ flex: 1 }}><b>{x.title}</b><small>{x.sub}</small></span>
+                {!x.done && <ChevronRight size={18} className="muted" />}
+              </button>
+            ))}
+          </div>
+          <button className="link" style={{ marginTop: 6 }} onClick={() => { setLS('bolso:steps-off'); setStepsHidden(true); }}>Ocultar</button>
         </section>
-      ) : (
+      )}
+
+      {live.length > 0 && (
         <>
           <SectionTitle title="Contas e cartões" action={<Link className="link" to="/contas">Ver todas <ChevronRight size={16} /></Link>} />
           <div className="carousel">
@@ -130,7 +202,7 @@ export function Home() {
             {soon.slice(0, 5).map((u) => (
               <button key={u.id} className="item" onClick={() => nav(u.link)}>
                 <span className={`ico ${u.kind === 'income' ? 'in' : u.date < s.today ? 'bad' : ''}`}>{u.kind === 'invoice' ? <Wallet size={19} /> : u.kind === 'income' ? <ArrowDown size={19} /> : <ArrowUp size={19} />}</span>
-                <span className="main"><b>{u.title}</b><small>{u.date < s.today ? `Atrasado desde ${shortDate(u.date)}` : `Vence ${dayLabel(u.date, s.today).toLowerCase()} · ${shortDate(u.date)}`}</small></span>
+                <span className="main"><b>{u.title}</b><small className={u.date < s.today ? 'red' : ''}>{u.date < s.today ? `Atrasado desde ${shortDate(u.date)}` : `Vence ${dayLabel(u.date, s.today).toLowerCase()} · ${shortDate(u.date)}`}</small></span>
                 <span className="side"><b className={u.kind === 'income' ? 'green' : ''}><Money value={u.amount} signed={u.kind === 'income'} /></b></span>
               </button>
             ))}
@@ -140,17 +212,34 @@ export function Home() {
 
       <SectionTitle title="Últimos lançamentos" action={<Link className="link" to="/lancamentos">Ver todos <ChevronRight size={16} /></Link>} />
       {recent.length === 0 ? (
-        <div className="card"><Empty title="Nenhum lançamento ainda">Use o campo rápido acima, por exemplo: <b style={{ display: 'inline' }}>50 mercado</b></Empty></div>
+        <div className="card">
+          <Empty icon={<Receipt size={26} />} title="Nenhum lançamento ainda"
+            action={live.length ? <button className="btn primary" onClick={() => inputRef.current?.focus()}>Fazer o primeiro lançamento</button> : undefined}>
+            Digite no campo rápido, por exemplo <code>50 mercado</code>.
+          </Empty>
+        </div>
       ) : (
         <div className="list">
           {Object.entries(groups).map(([date, rows]) => (
             <div key={date} className="list">
-              <div className="day-label">{dayLabel(date, s.today)}</div>
+              <div className="day-label"><span>{dayLabel(date, s.today)}</span><b><Money value={dayNet(rows)} signed /></b></div>
               {rows.map((t) => <TxRow key={t.id} tx={t} accounts={s.accounts} categories={s.categories} onClick={() => nav(`/lancamentos/${t.id}`)} />)}
             </div>
           ))}
         </div>
       )}
+
+      <ModalSheet open={help} onClose={() => setHelp(false)} title="Lançamento rápido">
+        <p className="muted">Digite o valor e uma palavra. O Bolso descobre a categoria sozinho e aprende palavras novas. Toque num exemplo para usar.</p>
+        <div className="help-list">
+          {EXAMPLES.map(([ex, what]) => (
+            <button key={ex} className="help-ex" onClick={() => { setText(ex); setHelp(false); setTimeout(() => inputRef.current?.focus(), 250); }}>
+              <code>{ex}</code><span>{what}</span>
+            </button>
+          ))}
+        </div>
+        <p className="muted" style={{ fontSize: 13 }}>Dica: acrescente o nome de uma conta (ex.: <code>nubank</code>) para escolher onde lançar.</p>
+      </ModalSheet>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { ArrowLeft, Plus, Repeat } from 'lucide-react';
 import { useStore } from '../store';
 import { Empty } from '../ui/common';
 import { useEditor } from '../ui/editors';
@@ -24,7 +24,7 @@ export function Recurrences() {
         <p className="hint">Soma das despesas recorrentes ativas: aluguel, assinaturas, mensalidades…</p>
       </section>
       {list.length === 0 ? (
-        <div className="card"><Empty title="Nenhuma recorrência">Cadastre o que se repete todo mês e o Bolso cria o lançamento sozinho.</Empty></div>
+        <div className="card"><Empty icon={<Repeat size={26} />} title="Nenhuma recorrência" action={<button className="btn primary" onClick={() => openRecurrence()}>Criar recorrência</button>}>Cadastre o que se repete todo mês (aluguel, assinaturas) e o Bolso cria o lançamento sozinho.</Empty></div>
       ) : (
         <div className="group">
           {list.map((r) => {

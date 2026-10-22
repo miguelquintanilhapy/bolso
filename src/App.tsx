@@ -5,6 +5,7 @@ import type { SessionUser } from './data/api';
 import { StoreProvider } from './store';
 import { PrivacyProvider } from './ui/privacy';
 import { EditorProvider } from './ui/editors';
+import { ConfirmProvider } from './ui/confirm';
 import { Layout } from './ui/Layout';
 import { Login } from './pages/Login';
 import { Home } from './pages/Home';
@@ -40,6 +41,7 @@ export default function App() {
     <PrivacyProvider>
       <StoreProvider key={user.id} user={user}>
         <BrowserRouter>
+          <ConfirmProvider>
           <EditorProvider>
             <Routes>
               <Route element={<Layout />}>
@@ -58,6 +60,7 @@ export default function App() {
               </Route>
             </Routes>
           </EditorProvider>
+          </ConfirmProvider>
         </BrowserRouter>
       </StoreProvider>
     </PrivacyProvider>
