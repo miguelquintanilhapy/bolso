@@ -13,6 +13,12 @@ function load(): Store {
   }
 }
 
+/** Atraso artificial por chamada (ms), só para testar lentidão de rede: localStorage['bolso:demo-latency']. */
+const lag = () => {
+  const ms = Number(localStorage.getItem('bolso:demo-latency') ?? 0);
+  return ms > 0 ? new Promise<void>((r) => setTimeout(r, ms)) : undefined;
+};
+
 /** Banco local (localStorage) com a mesma interface do Supabase — usado sem variáveis de ambiente. */
 export function createDemoDb(): Db {
   const store = load();
@@ -30,9 +36,11 @@ export function createDemoDb(): Db {
       location.reload();
     },
     async list<T>(table: Table) {
+      await lag();
       return structuredClone(store[table]) as T[];
     },
     async insert<T>(table: Table, rows: object[], opts?: { ignoreDuplicates?: string }) {
+      await lag();
       const cols = opts?.ignoreDuplicates?.split(',').filter((c) => c !== 'user_id');
       const created: Record<string, unknown>[] = [];
       for (const r of rows as Record<string, unknown>[]) {
@@ -47,6 +55,7 @@ export function createDemoDb(): Db {
       return structuredClone(created) as T[];
     },
     async update<T>(table: Table, id: string, patch: object) {
+      await lag();
       const row = store[table].find((r) => r.id === id);
       if (!row) throw new Error('Registro não encontrado');
       Object.assign(row, patch);
@@ -54,6 +63,7 @@ export function createDemoDb(): Db {
       return structuredClone(row) as T;
     },
     async remove(table, ids) {
+      await lag();
       const set = new Set(ids);
       store[table] = store[table].filter((r) => !set.has(r.id as string));
       // cascata mínima, como no banco

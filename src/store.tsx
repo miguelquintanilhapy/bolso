@@ -8,6 +8,10 @@ import { planNotifications } from './lib/alerts';
 import { todayISO } from './lib/dates';
 import { formatBRL } from './lib/money';
 import { seedDemo } from './data/demoSeed';
+import { clearCache, readCache, writeCache } from './data/cache';
+
+/** O que a manutenção em segundo plano criou ou alterou. */
+interface Delta { transactions: Transaction[]; recurrences: Recurrence[]; notifications: AppNotification[] }
 
 interface Data {
   accounts: Account[];
@@ -27,6 +31,10 @@ interface Ctx extends Data {
   today: string;
   mode: 'supabase' | 'demo';
   reload: () => Promise<void>;
+  /** Milissegundos até a tela principal aparecer (diagnóstico). */
+  loadMs: number | null;
+  /** Mostrando a cópia guardada enquanto busca a versão mais nova. */
+  refreshing: boolean;
   /** Gera já os lançamentos devidos de uma recorrência recém-salva. */
   syncRecurrences: (saved?: Recurrence) => Promise<void>;
   addTransactions: (rows: NewTransaction[]) => Promise<Transaction[]>;
@@ -58,6 +66,9 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastMsg[]>([]);
+  const [loadMs, setLoadMs] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const mutations = useRef(0); // conta alterações feitas pela pessoa (para não perder nada ao atualizar por trás)
   const [flash, setFlash] = useState<ReadonlySet<string>>(new Set());
   const today = useMemo(todayISO, []);
   const booted = useRef(false);
@@ -65,6 +76,7 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
   dataRef.current = data;
 
   const merge = useCallback(<K extends keyof Data>(table: K, rows: Data[K]) => {
+    mutations.current++;
     setData((d) => {
       const map = new Map((d[table] as Row[]).map((r) => [r.id, r]));
       for (const r of rows as Row[]) map.set(r.id, r);
@@ -73,6 +85,7 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
   }, []);
 
   const drop = useCallback((table: Table, ids: string[]) => {
+    mutations.current++;
     const set = new Set(ids);
     setData((d) => {
       const next = { ...d, [table]: (d[table as keyof Data] as Row[]).filter((r) => !set.has(r.id)) } as Data;
@@ -103,61 +116,98 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
   const reload = useCallback(async () => setData(await load()), [load]);
 
 
-  const processRecurrences = useCallback(async (d: Data): Promise<Data> => {
+  /** Gera as recorrências devidas e devolve só o que foi criado/alterado. */
+  const processRecurrences = useCallback(async (d: Data): Promise<Delta> => {
+    const none: Delta = { transactions: [], recurrences: [], notifications: [] };
     const plan = planRecurrences(d.recurrences, d.accounts, today);
-    if (!plan.length) return d;
-    const next = { ...d };
+    if (!plan.length) return none;
     const created = await db.insert<Transaction>('transactions', plan.map((p) => p.tx), { ignoreDuplicates: 'recurrence_id,ref_month' });
-    next.transactions = [...d.transactions, ...created];
     const lastByRec = new Map<string, string>();
     for (const p of plan) if (p.month > (lastByRec.get(p.recurrenceId) ?? '')) lastByRec.set(p.recurrenceId, p.month);
-    for (const [id, month] of lastByRec) {
-      const updated = await db.update<Recurrence>('recurrences', id, { last_generated_month: month });
-      next.recurrences = next.recurrences.map((r) => (r.id === id ? updated : r));
-    }
     const newNotifs = created
       .filter((t) => t.date <= today)
       .map((t) => ({ kind: 'recurrence', dedupe_key: `rec:${t.recurrence_id}:${t.ref_month}`, link: `/lancamentos/${t.id}`,
         title: `Lançamento recorrente criado: ${t.description}`, body: `${formatBRL(t.amount)} em ${t.date.split('-').reverse().join('/')}.` }));
-    if (newNotifs.length) next.notifications = [...d.notifications, ...(await db.insert<AppNotification>('notifications', newNotifs, { ignoreDuplicates: 'user_id,dedupe_key' }))];
-    return next;
+    // atualizações e avisos não dependem uns dos outros: vão juntos
+    const [recurrences, notifications] = await Promise.all([
+      Promise.all([...lastByRec].map(([id, month]) => db.update<Recurrence>('recurrences', id, { last_generated_month: month }))),
+      newNotifs.length ? db.insert<AppNotification>('notifications', newNotifs, { ignoreDuplicates: 'user_id,dedupe_key' }) : Promise.resolve([] as AppNotification[]),
+    ]);
+    return { transactions: created, recurrences, notifications };
   }, [today]);
+
+  const applyDelta = useCallback((delta: Delta) => {
+    if (delta.transactions.length) merge('transactions', delta.transactions);
+    if (delta.recurrences.length) merge('recurrences', delta.recurrences);
+    if (delta.notifications.length) merge('notifications', delta.notifications);
+  }, [merge]);
 
   const syncRecurrences = useCallback(async (saved?: Recurrence) => {
     const cur = dataRef.current;
     const recs = saved ? [...cur.recurrences.filter((r) => r.id !== saved.id), saved] : cur.recurrences;
-    setData(await processRecurrences({ ...cur, recurrences: recs }));
-  }, [processRecurrences]);
+    applyDelta(await processRecurrences({ ...cur, recurrences: recs }));
+  }, [processRecurrences, applyDelta]);
 
-  // Inicialização: carrega tudo, cria categorias padrão, gera recorrências e avisos.
+  // Inicialização. O que a pessoa espera para ver a tela é o mínimo:
+  //  1) mostra na hora a cópia guardada da última vez (se existir);
+  //  2) busca os dados novos e troca por trás;
+  //  3) recorrências e avisos rodam depois, sem segurar a tela.
+  const cacheKey = `v1:${user.id}`;
   useEffect(() => {
     if (booted.current) return;
     booted.current = true;
+    const t0 = performance.now();
     (async () => {
+      let shown = false;
+      const cached = await readCache<Data>(cacheKey);
+      if (cached) {
+        setData({ ...emptyData, ...cached });
+        setReady(true);
+        setLoadMs(Math.round(performance.now() - t0));
+        setRefreshing(true);
+        shown = true;
+      }
       try {
+        const startedAt = mutations.current;
         let d = await load();
         if (db.mode === 'demo' && !d.accounts.length && !d.categories.length && new URLSearchParams(location.search).has('demo')) {
           await seedDemo(db, today);
           d = await load();
         }
+        // as categorias padrão precisam existir antes do primeiro lançamento
         if (!d.categories.length) {
           d.categories = await db.insert<Category>('categories', DEFAULT_CATEGORIES.map((c) => ({ ...c, budget_limit: null, archived: false })));
         }
-        d = await processRecurrences(d);
-        // avisos por regra
-        const alerts = planNotifications({
-          categories: d.categories, accounts: d.accounts, txs: d.transactions, today,
-          existingKeys: new Set(d.notifications.map((n) => n.dedupe_key)),
-        });
-        if (alerts.length) d.notifications = [...d.notifications, ...(await db.insert<AppNotification>('notifications', alerts, { ignoreDuplicates: 'user_id,dedupe_key' }))];
+        // a pessoa mexeu enquanto buscávamos: busca de novo para não mostrar dado velho
+        if (mutations.current !== startedAt) d = await load();
         setData(d);
+        setReady(true);
+        if (!shown) setLoadMs(Math.round(performance.now() - t0));
+
+        // manutenção em segundo plano
+        const delta = await processRecurrences(d);
+        applyDelta(delta);
+        const alerts = planNotifications({
+          categories: d.categories, accounts: d.accounts, txs: [...d.transactions, ...delta.transactions], today,
+          existingKeys: new Set([...d.notifications, ...delta.notifications].map((n) => n.dedupe_key)),
+        });
+        if (alerts.length) merge('notifications', await db.insert<AppNotification>('notifications', alerts, { ignoreDuplicates: 'user_id,dedupe_key' }));
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Erro ao carregar os dados');
+        if (shown) toast('Sem conexão. Mostrando os dados salvos neste aparelho.');
+        else setError(e instanceof Error ? e.message : 'Erro ao carregar os dados');
       } finally {
         setReady(true);
+        setRefreshing(false);
       }
     })();
-  }, [load, today, processRecurrences]);
+  }, [load, today, processRecurrences, applyDelta, merge, toast, cacheKey]);
+
+  // mantém a cópia local em dia depois de cada mudança
+  useEffect(() => {
+    if (!ready) return;
+    const t = setTimeout(() => void writeCache(cacheKey, data), 500);
+    return () => clearTimeout(t);
+  }, [data, ready, cacheKey]);
 
   const flashFor = useCallback((ids: string[]) => {
     setFlash((f) => new Set([...f, ...ids]));
@@ -240,8 +290,8 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
   }, [reload]);
 
   const value: Ctx = {
-    ...data, user, today, mode: db.mode, reload, syncRecurrences, addTransactions, save, insertMany, remove, removeWithUndo, markRead, markPaid, flash,
-    toasts, toast, dismissToast, signOut: () => db.signOut(),
+    ...data, user, today, mode: db.mode, reload, syncRecurrences, loadMs, refreshing, addTransactions, save, insertMany, remove, removeWithUndo, markRead, markPaid, flash,
+    toasts, toast, dismissToast, signOut: async () => { await clearCache(); await db.signOut(); },
   };
 
   if (!ready) return <div className="splash"><img className="brand-logo" src="/logo.png" alt="Bolso" /></div>;

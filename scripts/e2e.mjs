@@ -231,6 +231,24 @@ const dur = await calm.locator('.screen > *').first().evaluate((e) => getCompute
 check('reduzir movimento: animações desligadas', parseFloat(dur) < 0.01, dur);
 check('reduzir movimento: sem erros', calmErrors.length === 0);
 
+// cópia local: abre rápido mesmo com rede lenta, e sair da conta apaga a cópia
+await page.waitForTimeout(800); // deixa o cache ser gravado (grava ~0,5 s depois de cada mudança)
+await page.evaluate(() => localStorage.setItem('bolso:demo-latency', '700'));
+const t0 = Date.now();
+await page.reload(); await page.waitForSelector('.hero');
+const withCache = Date.now() - t0;
+check(`com rede lenta (700 ms/chamada) a tela abre pela cópia local (${withCache} ms)`, withCache < 600, String(withCache));
+await page.evaluate(() => localStorage.setItem('bolso:demo-latency', '0'));
+await page.waitForTimeout(1200);
+const keys = () => page.evaluate(() => new Promise((res) => { const r = indexedDB.open('bolso-cache'); r.onsuccess = () => { const db = r.result; if (!db.objectStoreNames.contains('kv')) return res(0); const q = db.transaction('kv').objectStore('kv').count(); q.onsuccess = () => res(q.result); }; r.onerror = () => res(-1); }));
+check('cópia local gravada', (await keys()) >= 1, String(await keys()));
+await go('/mais');
+await page.click('.item:has-text("Sair")');
+await page.waitForLoadState('load'); await page.waitForTimeout(1500);
+// no modo demo o app reabre sozinho (não há tela de login) e grava uma cópia VAZIA: o que importa é não sobrar dado antigo
+const leftover = await page.evaluate(() => new Promise((res) => { const r = indexedDB.open('bolso-cache'); r.onsuccess = () => { const db = r.result; if (!db.objectStoreNames.contains('kv')) return res(0); const q = db.transaction('kv').objectStore('kv').getAll(); q.onsuccess = () => res(q.result.reduce((n, d) => n + (d.transactions?.length ?? 0) + (d.accounts?.length ?? 0), 0)); }; r.onerror = () => res(-1); }));
+check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta sobra)', leftover === 0, `sobraram ${leftover} registros`);
+
 // ── começar do zero (primeiro acesso, sem dados de exemplo)
 const fresh = await (await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'pt-BR' })).newPage();
 fresh.on('pageerror', (e) => errors.push('fresh pageerror: ' + e.message));

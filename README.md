@@ -25,6 +25,13 @@ App web instalável no iPhone (PWA), com banco e login no Supabase e hospedagem 
 - **Ocultar valores** (olho), tema claro/escuro, exportação CSV e backup JSON.
 - **Fluidez:** pagar/receber pendentes com um toque na própria linha, "Desfazer" em ações, formulário com rodapé fixo (Salvar sempre visível), categoria sugerida enquanto você digita, atalhos Hoje/Ontem, painéis que se arrastam para fechar, barra de navegação com indicador deslizante, animações de entrada e nos gráficos (desligadas automaticamente em "Reduzir movimento"), aviso de offline e atualização dos dados ao voltar para o app.
 
+## Desempenho
+
+- Ao abrir, o app mostra na hora a **cópia local** dos dados (IndexedDB, apagada ao sair da conta) e atualiza por trás; só a primeira entrada num aparelho espera o servidor.
+- Recorrências e avisos são gerados **depois** de a tela aparecer, sem segurar quem espera.
+- A conexão com o Supabase é aberta em paralelo ao carregamento do site (`preconnect`).
+- Para medir com rede lenta simulada: `localStorage['bolso:demo-latency'] = '400'` no modo demo, e `scripts/perf-login.mjs` / `scripts/perf.mjs`. Em **Mais → rodapé** aparece "abriu em X s".
+
 ## Configurar
 
 Passo a passo completo em [docs/SETUP.md](docs/SETUP.md).
