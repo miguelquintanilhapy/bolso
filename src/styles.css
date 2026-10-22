@@ -428,3 +428,12 @@ button:not(:disabled):active, [role='button']:active, a.item:active { transform:
 body { -webkit-text-size-adjust: 100%; }
 button, a, [role='button'], input, select, label, summary { touch-action: manipulation; }
 button, [role='button'], .nav, .pill, .chip, .seg { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+
+/* ======================= sem balanço lateral no celular ======================= */
+html, body { overflow-x: hidden; overflow-x: clip; overscroll-behavior-x: none; max-width: 100%; }
+body { touch-action: pan-y pinch-zoom; }
+.app, .page { overflow-x: clip; }
+/* listas que rolam de lado não repassam o gesto para a página */
+.carousel, .pills { overscroll-behavior-x: contain; touch-action: pan-x pan-y pinch-zoom; }
+.sheet, .sheet-body { overscroll-behavior: contain; }
+.sheet-body { overflow-x: hidden; }
