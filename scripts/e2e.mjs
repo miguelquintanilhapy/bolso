@@ -148,6 +148,16 @@ await page.press('.sheet .amount-input', 'Enter');
 await page.waitForSelector('.sheet', { state: 'detached' });
 check('Enter com valor salva e fecha o painel', true);
 
+// barra inferior fixa ao rolar (regressão: overflow-x em html/body quebra position:fixed no Safari do iPhone)
+await go('/');
+const navGap = () => page.evaluate(() => Math.round(innerHeight - document.querySelector('nav.nav').getBoundingClientRect().bottom));
+const gap0 = await navGap();
+await page.evaluate(() => window.scrollTo(0, 700)); await page.waitForTimeout(250);
+check('barra inferior não se mexe ao rolar a página', (await navGap()) === gap0, `${gap0} → ${await navGap()}`);
+const ov = await page.evaluate(() => [getComputedStyle(document.documentElement).overflowX, getComputedStyle(document.body).overflowX, document.scrollingElement.tagName].join(','));
+check('rolagem é a da página (sem overflow-x em html/body)', ov === 'visible,visible,HTML', ov);
+await page.evaluate(() => window.scrollTo(0, 0));
+
 // duplo envio: dois disparos no mesmo instante não podem criar dois lançamentos
 await go('/');
 await page.fill('input[aria-label="Lançamento rápido"]', '77 mercado');

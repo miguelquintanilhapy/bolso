@@ -41,6 +41,7 @@ export function Layout() {
   useEffect(() => { window.scrollTo(0, 0); }, [section]);
   return (
     <>
+      <div className="status-fill" aria-hidden />
       {!online && <div className="offline" role="status"><WifiOff size={14} style={{ verticalAlign: -2 }} /> Sem conexão — o que você alterar agora pode não ser salvo.</div>}
       <div className="app"><div className="page" key={section}><Outlet /></div></div>
       {showFab && <button className="fab" onClick={() => newTx()} aria-label="Novo lançamento"><Plus size={26} /></button>}
