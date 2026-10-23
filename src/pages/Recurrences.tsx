@@ -12,7 +12,7 @@ export function Recurrences() {
   const { openRecurrence } = useEditor();
   const list = [...s.recurrences].sort((a, b) => Number(b.active) - Number(a.active) || a.day_of_month - b.day_of_month);
   return (
-    <div className="screen">
+    <div className="screen narrow">
       <div className="topbar">
         <Link to="/mais" className="back" aria-label="Voltar"><ArrowLeft size={20} /></Link>
         <h1 className="title">Recorrências</h1>

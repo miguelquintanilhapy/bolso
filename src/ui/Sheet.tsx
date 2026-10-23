@@ -32,6 +32,7 @@ export function Sheet({ title, onClose, children, left, footer }: { title: strin
   }, []);
 
   const down = (e: React.PointerEvent) => {
+    if (matchMedia('(min-width: 720px)').matches) return; // no computador o painel é uma janela: não se arrasta
     if ((e.target as HTMLElement).closest('button')) return;
     start.current = e.clientY;
     setMode('dragging');

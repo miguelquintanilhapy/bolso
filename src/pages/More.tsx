@@ -39,7 +39,7 @@ export function More() {
   );
 
   return (
-    <div className="screen">
+    <div className="screen narrow">
       <div className="topbar"><h1 className="title" style={{ fontSize: 22 }}>Mais</h1></div>
       <button className="card row-between" style={{ textAlign: 'left', width: '100%' }} onClick={() => { setDraft(name); setEditName(true); }} aria-label="Editar seu nome">
         <div className="row-between" style={{ justifyContent: 'flex-start' }}>

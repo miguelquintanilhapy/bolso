@@ -299,6 +299,47 @@ await page.waitForLoadState('load'); await page.waitForTimeout(1500);
 const leftover = await page.evaluate(() => new Promise((res) => { const r = indexedDB.open('bolso-cache'); r.onsuccess = () => { const db = r.result; if (!db.objectStoreNames.contains('kv')) return res(0); const q = db.transaction('kv').objectStore('kv').getAll(); q.onsuccess = () => res(q.result.reduce((n, d) => n + (d.transactions?.length ?? 0) + (d.accounts?.length ?? 0), 0)); }; r.onerror = () => res(-1); }));
 check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta sobra)', leftover === 0, `sobraram ${leftover} registros`);
 
+// ── computador e tablet
+{
+  const desk = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
+  const dErr = []; desk.on('pageerror', (e) => dErr.push(e.message));
+  await desk.goto(`${url}/?demo`); await desk.waitForSelector('.hero'); await desk.waitForTimeout(1200);
+  const box = (sel) => desk.locator(sel).first().boundingBox();
+  const nav = await box('nav.nav');
+  check('computador: menu lateral à esquerda, na altura toda', nav.x === 0 && nav.width >= 240 && nav.width <= 260 && nav.height >= 790, JSON.stringify(nav));
+  const app = await box('.app .screen');
+  check('computador: conteúdo fica à direita do menu', app.x >= nav.width, `x = ${app.x}`);
+  const a = await box('.col-a'), b = await box('.col-b');
+  check('computador: início em duas colunas (contas ao lado dos lançamentos)', b.x > a.x + a.width - 5 && Math.abs(b.y - a.y) < 40, `${JSON.stringify(a)} | ${JSON.stringify(b)}`);
+  check('computador: cartões das contas empilhados (sem rolar de lado)', (await desk.locator('.carousel').evaluate((e) => getComputedStyle(e).flexDirection)) === 'column');
+  check('computador: sem rolagem lateral', (await desk.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)) === 0);
+  check('computador: botão flutuante e faixa do iPhone ocultos', (await desk.locator('.status-fill').evaluate((e) => getComputedStyle(e).display)) === 'none');
+  await desk.keyboard.press('n');
+  await desk.waitForSelector('.sheet');
+  await desk.waitForTimeout(500);
+  const sh = await box('.sheet');
+  check('computador: atalho N abre o formulário', true);
+  check('computador: painel vira janela centralizada', Math.abs(sh.x + sh.width / 2 - 640) < 3 && sh.y > 10 && sh.y + sh.height < 790 && sh.width <= 565, JSON.stringify(sh));
+  await desk.keyboard.press('Escape'); await desk.waitForSelector('.sheet', { state: 'detached' });
+  await desk.keyboard.press('/');
+  check('computador: atalho / foca o lançamento rápido', await desk.evaluate(() => document.activeElement?.getAttribute('aria-label') === 'Lançamento rápido'));
+  for (const path of ['/lancamentos', '/orcamentos', '/insights', '/mais', '/contas']) {
+    await desk.evaluate((x) => { history.pushState({}, '', x); dispatchEvent(new PopStateEvent('popstate')); }, path); await desk.waitForTimeout(500);
+    const over = await desk.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    if (over !== 0) check(`computador: ${path} sem rolagem lateral`, false, `${over}px`);
+  }
+  await desk.evaluate(() => { history.pushState({}, '', '/orcamentos'); dispatchEvent(new PopStateEvent('popstate')); }); await desk.waitForTimeout(600);
+  const sa = await box('.split-col'), sb = await desk.locator('.split-col').nth(1).boundingBox();
+  check('computador: orçamento em duas colunas', sb.x > sa.x + sa.width - 5, `${sa.x}/${sb.x}`);
+  check('computador: sem erros no console', dErr.length === 0, dErr.join(' | '));
+
+  const tab = await (await browser.newContext({ viewport: { width: 768, height: 1024 } })).newPage();
+  await tab.goto(`${url}/?demo`); await tab.waitForSelector('.hero'); await tab.waitForTimeout(1000);
+  const tn = await tab.locator('nav.nav').boundingBox();
+  check('tablet: continua a barra inferior (não o menu lateral)', tn.y > 900 && tn.width < 500, JSON.stringify(tn));
+  check('tablet: sem rolagem lateral', (await tab.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)) === 0);
+}
+
 // ── começar do zero (primeiro acesso, sem dados de exemplo)
 const fresh = await (await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'pt-BR' })).newPage();
 fresh.on('pageerror', (e) => errors.push('fresh pageerror: ' + e.message));
