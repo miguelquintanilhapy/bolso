@@ -18,7 +18,17 @@ export function Sheet({ title, onClose, children, left, footer }: { title: strin
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeRef.current();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') return closeRef.current();
+      if (e.key !== 'Tab' || !ref.current) return;
+      // mantém o Tab dentro do painel (não deixa o foco ir para a tela de trás)
+      const items = [...ref.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter((el) => el.offsetParent !== null);
+      if (!items.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === ref.current)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      else if (!ref.current.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+    };
     document.addEventListener('keydown', onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';

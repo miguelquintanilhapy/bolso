@@ -33,12 +33,7 @@
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
     __PRECONNECT__
     <title>Bolso</title>
-    <script>
-      try {
-        var t = localStorage.getItem('bolso:theme');
-        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
-      } catch (e) {}
-    </script>
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

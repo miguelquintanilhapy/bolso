@@ -7,7 +7,7 @@ import { Segmented, Switch } from './common';
 import { CATEGORY_ICONS, CategoryIcon, COLORS } from './icons';
 import type { Account, AccountKind, Category, NewTransaction, Recurrence, Snapshot, Transaction, TxKind } from '../lib/types';
 import { accountBalance, buildInstallments, buildInvoice, cardOverview, invoiceMonths } from '../lib/finance';
-import { formatBRL, parseAmount, round2 } from '../lib/money';
+import { amountError, formatBRL, parseAmount, round2 } from '../lib/money';
 import { addDays, monthLabel, monthOf } from '../lib/dates';
 import { norm } from '../lib/quickEntry';
 
@@ -116,6 +116,8 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
   const sending = useRef(false); // trava contra duplo toque (o estado `busy` só atualiza no próximo render)
 
   const account = s.accounts.find((a) => a.id === accountId);
+  // de onde o dinheiro pode sair numa transferência: não de um cartão de crédito
+  const fromOptions = kind === 'transfer' ? live.filter((a) => a.kind !== 'credit') : live;
   const toAccount = s.accounts.find((a) => a.id === toId);
   const isCard = account?.kind === 'credit';
   const catKind = kind === 'income' ? 'income' : 'expense';
@@ -159,8 +161,10 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
 
   const submit = async () => {
     if (sending.current) return;
-    if (!value) return fail('Informe um valor maior que zero.');
+    if (!value) return fail(amountError(amount));
+    if (installments > 1 && value / installments < 0.01) return fail(`Valor pequeno demais para ${installments} parcelas (mínimo de R$ 0,01 cada).`);
     if (!accountId) return fail('Crie uma conta primeiro (aba Mais → Contas, cartões e investimentos).');
+    if (kind === 'transfer' && account?.kind === 'credit') return fail('Não dá para transferir a partir de um cartão. Para pagar a fatura, transfira de uma conta para o cartão.');
     if (kind === 'transfer' && (!toId || toId === accountId)) return fail('Escolha uma conta de destino diferente da origem.');
     sending.current = true;
     setBusy(true);
@@ -234,7 +238,11 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
           </div>
         </>
       }>
-      <Segmented<TxKind> value={kind} onChange={(k) => { setKind(k); setCategoryId(null); setCategoryTouched(false); }}
+      <Segmented<TxKind> value={kind} onChange={(k) => {
+        setKind(k); setCategoryId(null); setCategoryTouched(false);
+        // cartão de crédito não pode ser a origem de uma transferência
+        if (k === 'transfer' && account?.kind === 'credit') setAccountId(live.find((a) => a.kind !== 'credit')?.id ?? '');
+      }}
         options={[{ id: 'expense', label: 'Despesa' }, { id: 'income', label: 'Receita' }, { id: 'transfer', label: 'Transferência' }]} />
       <div className="amount-wrap">
         <small>Valor (R$)</small>
@@ -262,9 +270,9 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
       )}
 
       <Field label={kind === 'transfer' ? 'De' : 'Conta'}>
-        {live.length <= 4 ? (
+        {fromOptions.length <= 4 ? (
           <div className="chips">
-            {live.map((a) => (
+            {fromOptions.map((a) => (
               <button key={a.id} type="button" className={`chip ${accountId === a.id ? 'active' : ''}`} aria-pressed={accountId === a.id} onClick={() => setAccountId(a.id)}>
                 <span className="dot-color" style={{ background: a.color }} /> {a.name}
               </button>
@@ -272,7 +280,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
           </div>
         ) : (
           <select className="select" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-            {live.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            {fromOptions.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
         )}
       </Field>
@@ -334,7 +342,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
             <span key={t} className="chip active">#{t}<button type="button" className="x" aria-label={`Remover ${t}`} onClick={() => setTags(tags.filter((x) => x !== t))}>×</button></span>
           ))}
         </div>
-        <input className="input" value={tagInput} placeholder="Digite e pressione Enter" onChange={(e) => setTagInput(e.target.value)}
+        <input className="input" value={tagInput} placeholder="Digite e pressione Enter" maxLength={30} onChange={(e) => setTagInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); } }} onBlur={addTag} />
       </Field>
       <Field label="Observação">
@@ -385,7 +393,7 @@ function AccountEditor({ id, onClose }: { id?: string; onClose: () => void }) {
     if (sending.current) return;
     if (!name.trim()) return setError(`Dê um nome para o ${info.noun}.`);
     const init = kind === 'credit' ? 0 : initial.trim() ? (initial.trim().startsWith('-') ? -(parseAmount(initial.trim().slice(1)) ?? NaN) : parseAmount(initial)) : 0;
-    if (init === null || Number.isNaN(init)) return setError('Saldo inicial inválido.');
+    if (init === null || Number.isNaN(init)) return setError(amountError(initial.trim().replace(/^-/, '')) || 'Saldo inicial inválido.');
     const c = closingDay, d = dueDay;
     if (kind === 'credit' && !daysOk) return setError('Informe o dia do fechamento e o do vencimento (1 a 31). Estão no app do seu banco.');
     sending.current = true;
@@ -501,7 +509,7 @@ function CategoryEditor({ id, kind: initKind, onClose }: { id?: string; kind?: '
     if (sending.current) return;
     if (!name.trim()) return setError('Dê um nome para a categoria.');
     const limit = budget.trim() ? parseAmount(budget) : null;
-    if (budget.trim() && limit === null) return setError('Limite inválido.');
+    if (budget.trim() && limit === null) return setError(amountError(budget));
     sending.current = true;
     try {
       await s.save<Category>('categories', {
@@ -580,7 +588,7 @@ function RecurrenceEditor({ id, onClose }: { id?: string; onClose: () => void })
     const value = parseAmount(amount);
     const d = Number(day);
     if (!description.trim()) return setError('Dê um nome (ex.: Aluguel, Netflix).');
-    if (!value) return setError('Informe um valor maior que zero.');
+    if (!value) return setError(amountError(amount));
     if (!accountId) return setError('Crie uma conta primeiro.');
     if (!(d >= 1 && d <= 31)) return setError('Dia do mês entre 1 e 31.');
     if (end && end < start) return setError('O mês final não pode ser antes do inicial.');
@@ -656,7 +664,7 @@ function SnapshotEditor({ accountId, onClose }: { accountId: string; onClose: ()
   const gain = typed === null ? null : round2(typed - expected);
   const submit = async () => {
     if (sending.current) return;
-    if (typed === null) return setError('Informe o saldo atual.');
+    if (typed === null) return setError(balance.trim() ? amountError(balance) : 'Informe o saldo atual.');
     sending.current = true;
     try {
       await s.insertMany<Snapshot>('investment_snapshots', [{ account_id: accountId, date, balance: typed }]);

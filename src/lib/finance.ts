@@ -122,8 +122,9 @@ export function buildInvoice(card: Account, txs: Transaction[], month: string): 
     (t) => t.account_id === card.id && t.kind !== 'transfer' && invoiceMonthOf(t.date, closing) === month,
   );
   const total = round2(own.reduce((s, t) => s + (t.kind === 'income' ? -t.amount : t.amount), 0));
+  // só pagamento efetivado conta: um pagamento agendado (pendente) ainda não pagou a fatura
   const explicit = txs
-    .filter((t) => t.kind === 'transfer' && t.to_account_id === card.id && t.invoice_ref === month)
+    .filter((t) => t.kind === 'transfer' && t.to_account_id === card.id && t.invoice_ref === month && t.status === 'paid')
     .reduce((s, t) => s + t.amount, 0);
   const paid = round2(explicit + (looseAllocation(card, txs).get(month) ?? 0));
   return {
@@ -251,7 +252,9 @@ export function forecast(
   for (const t of txs) {
     if (t.status !== 'pending' || monthOf(t.date) > month) continue; // atrasadas (mês anterior) também contam
     if (t.kind === 'transfer') {
-      if (checking.has(t.account_id)) pendingOut += t.amount;
+      // pagamento agendado de fatura já está contado em "faturas a vencer": não desconta duas vezes
+      const toCard = live.some((a) => a.id === t.to_account_id && a.kind === 'credit');
+      if (checking.has(t.account_id) && !toCard) pendingOut += t.amount;
       if (t.to_account_id && checking.has(t.to_account_id)) pendingIn += t.amount;
     } else if (checking.has(t.account_id)) {
       if (t.kind === 'income') pendingIn += t.amount;

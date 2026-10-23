@@ -474,7 +474,7 @@ body { touch-action: pan-y pinch-zoom; }
 .nav-brand, .nav-new, .nav-user { display: none; }
 .nav-items { display: contents; }
 .cols, .col { display: contents; }
-.block, .split, .split-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.hblock, .split, .split-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .col > * { animation: rise-in 0.42s var(--ease-out) backwards; }
 .col > *:nth-child(2) { animation-delay: 40ms; }
 .col > *:nth-child(3) { animation-delay: 80ms; }
@@ -544,7 +544,6 @@ kbd { font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 2p
   /* início em duas colunas */
   .cols { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 24px; align-items: start; }
   .col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
-  .col-b { position: sticky; top: 24px; }
   .carousel { flex-direction: column; overflow: visible; scroll-snap-type: none; margin: 0; padding: 0; gap: 12px; }
   .carousel > * { flex: none; }
   .acc-card { min-height: 148px; }
@@ -554,7 +553,6 @@ kbd { font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 2p
   .split { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 24px; align-items: start; }
   .split.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .split-col { gap: 20px; }
-  .split-col.sticky { position: sticky; top: 24px; }
 
   .hero { font-size: 44px; }
   .card { padding: 22px; }
@@ -571,3 +569,54 @@ kbd { font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 2p
   .login .input { background: var(--card-2); box-shadow: none; }
 }
 @media (min-width: 1500px) { .screen { max-width: 1180px; } }
+
+/* ======================= ajustes de responsividade ======================= */
+.search { min-width: 0; }
+.stat-row, .grid3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 92px), 1fr)); }
+.stat b, .grid3 .card b { white-space: normal; overflow-wrap: anywhere; font-size: clamp(12.5px, 4vw, 15px); }
+.hero, .mini b, .catbar .nm, .stat b, .item .amount { overflow-wrap: anywhere; min-width: 0; }
+.hero { font-size: clamp(26px, 9vw, 40px); }
+.mini { min-width: 0; }
+.catbar { grid-template-columns: 28px minmax(0, 1fr) auto; }
+.table-view table { table-layout: fixed; }
+.table-view td, .table-view th { overflow-wrap: anywhere; }
+.chip { max-width: 100%; min-width: 0; }
+.chip .x { min-width: 28px; height: 28px; margin-right: -8px; }
+.quick .help { width: 44px; height: 44px; }
+.quick input { padding: 12px 0; }
+.pay-btn { height: 36px; padding: 0 12px; }
+.item .trash { padding: 13px; margin: -13px -9px -13px 0; }
+.switch { position: relative; }
+.switch::before { content: ''; position: absolute; inset: -6px -4px; }
+.icon-grid { grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); }
+.brand-mark { display: none; }
+.btn.block { display: inline-flex; flex-direction: row; align-items: center; justify-content: center; gap: 8px; }
+
+@media (min-width: 1024px) {
+  .screen.narrow { max-width: 1080px; }
+  .screen.narrow > * { max-width: 780px; width: 100%; }
+}
+@media (min-height: 820px) and (min-width: 1024px) {
+  .split-col.sticky { position: sticky; top: 24px; }
+}
+/* 1024–1279: menu lateral compacto (só ícones) */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  :root { --sidebar: 88px; }
+  .app { padding: 0 28px 64px; }
+  .nav { padding: 18px 12px 14px; align-items: center; }
+  .nav-brand { padding: 4px 0 8px; }
+  .nav-brand .brand-logo { display: none; }
+  .nav-brand .brand-mark { display: block; width: 36px; height: 36px; border-radius: 10px; }
+  .nav-new { width: 48px; height: 48px; padding: 0; border-radius: 50%; }
+  .nav-new .lbl, .nav-new kbd, .nav-items a span, .nav-user .nm { display: none; }
+  .nav-items { width: 100%; }
+  .nav-items a { justify-content: center; padding: 0; }
+  .nav-user { padding: 6px; }
+}
+.btn { flex-shrink: 0; }
+.pay-btn { height: 44px; margin-top: 0; }
+.search input { height: 44px; }
+.chip .x { min-width: 36px; height: 36px; }
+.chip { height: auto; min-height: 40px; padding-top: 6px; padding-bottom: 6px; white-space: normal; overflow-wrap: anywhere; }
+.card, .item > * { min-width: 0; }
+small.muted, .item small { overflow-wrap: anywhere; }
