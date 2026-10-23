@@ -814,3 +814,5 @@ button, .nav, .item, .chip, .pills button { -webkit-user-select: none; user-sele
 .amount-wrap:focus-within { box-shadow: 0 0 0 2px var(--blue); }
 .amount-wrap .amount-input:focus, .amount-wrap .amount-input:focus-visible { outline: 0; box-shadow: none; }
 .item .side { max-width: 58%; }
+.seg.thumb button { height: 44px; }
+.btn.block { height: auto; min-height: 48px; padding: 10px 16px; line-height: 1.2; max-width: 100%; min-width: 0; text-align: center; }
