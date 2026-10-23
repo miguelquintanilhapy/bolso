@@ -31,7 +31,7 @@ export function Budgets() {
 
   return (
     <div className="screen">
-      <div className="topbar"><h1 className="title" style={{ fontSize: 22 }}>Orçamento</h1></div>
+      <div className="topbar"><h1 className="title page-title">Orçamento</h1></div>
       <MonthNav month={month} onChange={setMonth} />
 
       <div className="split">

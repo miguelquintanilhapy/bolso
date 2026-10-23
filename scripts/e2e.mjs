@@ -306,7 +306,7 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   await desk.goto(`${url}/?demo`); await desk.waitForSelector('.hero'); await desk.waitForTimeout(1200);
   const box = (sel) => desk.locator(sel).first().boundingBox();
   const nav = await box('nav.nav');
-  check('computador: menu lateral à esquerda, na altura toda', nav.x === 0 && nav.width >= 240 && nav.width <= 260 && nav.height >= 790, JSON.stringify(nav));
+  check('computador: menu lateral flutuante à esquerda, quase na altura toda', nav.x <= 16 && nav.width >= 200 && nav.width <= 260 && nav.height >= 700, JSON.stringify(nav));
   const app = await box('.app .screen');
   check('computador: conteúdo fica à direita do menu', app.x >= nav.width, `x = ${app.x}`);
   const a = await box('.col-a'), b = await box('.col-b');
