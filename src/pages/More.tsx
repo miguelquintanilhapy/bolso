@@ -39,8 +39,10 @@ export function More() {
   );
 
   return (
-    <div className="screen narrow">
-      <div className="topbar"><h1 className="title" style={{ fontSize: 22 }}>Mais</h1></div>
+    <div className="screen">
+      <div className="topbar"><h1 className="title page-title">Mais</h1></div>
+      <div className="cols even">
+      <div className="col">
       <button className="card row-between" style={{ textAlign: 'left', width: '100%' }} onClick={() => { setDraft(name); setEditName(true); }} aria-label="Editar seu nome">
         <div className="row-between" style={{ justifyContent: 'flex-start' }}>
           <div className="avatar">{name[0]?.toUpperCase()}</div>
@@ -76,6 +78,8 @@ export function More() {
         </div>
       </div>
 
+      </div>
+      <div className="col">
       <span className="group-title">Seus dados</span>
       <div className="group">
         <button className="item" onClick={() => download(`bolso-${todayISO()}.csv`, transactionsToCSV(s.transactions, s.accounts, s.categories), 'text/csv;charset=utf-8')}>
@@ -90,6 +94,8 @@ export function More() {
         <button className="item" onClick={() => void s.signOut()}><span className="ico bad"><LogOut size={19} /></span><span className="main"><b className="red">Sair</b></span></button>
       </div>
       <p className="muted" style={{ textAlign: 'center', fontSize: 12.5 }}>Bolso · versão {__BUILD_ID__}{s.loadMs != null ? ` · abriu em ${(s.loadMs / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} s` : ''}</p>
+      </div>
+      </div>
     </div>
   );
 }

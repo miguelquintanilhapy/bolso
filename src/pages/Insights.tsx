@@ -15,7 +15,7 @@ export function Insights() {
   const [tab, setTab] = useState<Tab>('summary');
   return (
     <div className="screen">
-      <div className="topbar"><h1 className="title" style={{ fontSize: 22 }}>Insights</h1></div>
+      <div className="topbar"><h1 className="title page-title">Insights</h1></div>
       <Pills<Tab> value={tab} onChange={setTab} options={[{ id: 'summary', label: 'Resumo' }, { id: 'evolution', label: 'Evolução' }, { id: 'worth', label: 'Patrimônio' }]} />
       {tab === 'summary' && <Summary />}
       {tab === 'evolution' && <Evolution />}

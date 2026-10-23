@@ -60,8 +60,10 @@ export function Transactions() {
   const hasFilter = activeFilters > 0 || !!q.trim() || type !== 'all';
 
   return (
-    <div className="screen narrow">
-      <div className="topbar"><h1 className="title" style={{ fontSize: 22 }}>Extrato</h1></div>
+    <div className="screen">
+      <div className="topbar"><h1 className="title page-title">Extrato</h1></div>
+      <div className="split rev">
+      <div className="split-col aside">
       <div style={{ display: 'flex', gap: 8 }}>
         <label className="search" style={{ flex: 1 }}>
           <Search size={18} />
@@ -111,6 +113,7 @@ export function Transactions() {
         <div className="mini"><span>Entradas</span><b className="green"><Money value={inc} /></b></div>
         <div className="mini"><span>Saídas</span><b><Money value={exp} /></b></div>
       </div>
+      </div>
 
       {filtered.length === 0 ? (
         <div className="card">
@@ -129,6 +132,7 @@ export function Transactions() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }
