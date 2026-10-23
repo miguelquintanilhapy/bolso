@@ -37,19 +37,24 @@ export function Recurrences() {
     </div>
   );
   return (
-    <div className="screen narrow">
+    <div className="screen">
       <div className="topbar">
         <Link to="/mais" className="back" aria-label="Voltar"><ArrowLeft size={20} /></Link>
         <h1 className="title">Recorrências</h1>
         <button className="icon-btn" onClick={() => openRecurrence()} aria-label="Nova recorrência"><Plus size={20} /></button>
       </div>
+      <div className="split">
+      <div className="split-col sticky">
       <section className="card">
         <span className="muted">Já comprometido todo mês</span>
         <Hero value={monthlyCommitted(s.recurrences)} small />
         <p className="hint">Soma das despesas recorrentes ativas: aluguel, assinaturas, mensalidades…</p>
       </section>
+      {list.length > 0 && list.length < 4 && <div><p className="hint-title" style={{ marginBottom: 8 }}>Sugestões rápidas</p>{chips}</div>}
+      </div>
+      <div className="split-col">
       {list.length === 0 ? (
-        <div className="card"><Empty icon={<Repeat size={26} />} title="Nenhuma recorrência" action={<button className="btn primary" onClick={() => openRecurrence()}>Criar recorrência</button>}>Cadastre o que se repete todo mês e o Bolso cria o lançamento sozinho. Comece por um destes:</Empty><div style={{ marginTop: 14 }}>{chips}</div></div>
+        <div className="card"><Empty icon={<Repeat size={26} />} title="Nenhuma recorrência" action={<button className="btn" onClick={() => openRecurrence()}>Criar do zero</button>}>Cadastre o que se repete todo mês e o Bolso cria o lançamento sozinho. Comece por um destes:<div style={{ marginTop: 14 }}>{chips}</div></Empty></div>
       ) : (
         <div className="group">
           {list.map((r) => {
@@ -66,7 +71,8 @@ export function Recurrences() {
           })}
         </div>
       )}
-      {list.length > 0 && list.length < 4 && <div><p className="hint-title" style={{ marginBottom: 8 }}>Outras sugestões</p>{chips}</div>}
+      </div>
+      </div>
     </div>
   );
 }

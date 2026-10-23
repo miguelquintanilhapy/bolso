@@ -75,13 +75,15 @@ export function Accounts() {
   };
 
   return (
-    <div className="screen narrow">
+    <div className="screen">
       <div className="topbar">
         <Link to="/mais" className="back" aria-label="Voltar"><ArrowLeft size={20} /></Link>
         <h1 className="title">Suas contas</h1>
         <button className="icon-btn" onClick={() => openAccount()} aria-label="Adicionar"><Plus size={20} /></button>
       </div>
 
+      <div className="split">
+      <div className="split-col sticky">
       {live.length === 0 ? (
         <div className="card"><Empty title="Nenhuma conta ainda" action={<button className="btn primary" onClick={() => openAccount()}>Criar a primeira</button>}>
           Comece por onde seu dinheiro está: conta corrente, cartão de crédito ou investimento.
@@ -97,7 +99,8 @@ export function Accounts() {
           {summary.owed > 0 && <p className="hint">Já descontado do patrimônio: <b className="red"><Money value={summary.owed} /></b> de compras no cartão.</p>}
         </section>
       )}
-
+      </div>
+      <div className="split-col">
       {section('checking', 'Contas', <Money value={summary.cash} />)}
       {section('credit', 'Cartões de crédito', summary.owed > 0 ? <>você deve <Money value={summary.owed} /></> : 'sem dívida')}
       {section('investment', 'Investimentos', <Money value={summary.invested} />)}
@@ -110,6 +113,8 @@ export function Accounts() {
           ))}</div>}
         </>
       )}
+      </div>
+      </div>
     </div>
   );
 }

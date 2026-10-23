@@ -481,7 +481,13 @@ await fresh.waitForTimeout(800);
 check('zero: categorias padrão e campo rápido', (await fresh.locator('.hero').innerText()).includes('1.300'), await fresh.locator('.hero').innerText());
 // recorrência gera o lançamento do mês imediatamente
 await fresh.evaluate(() => { history.pushState({}, '', '/recorrencias'); dispatchEvent(new PopStateEvent('popstate')); });
+await fresh.waitForSelector('.empty');
+const emptyBox = await fresh.evaluate(() => { const b = document.querySelector('.empty-action button').getBoundingClientRect(); const c = document.querySelector('.empty .chips').getBoundingClientRect(); const t = document.querySelector('.empty-body').getBoundingClientRect(); return { btnTop: b.top, chipsBottom: c.bottom, textBottom: t.bottom }; });
+check('zero: estado vazio — botão fica abaixo do texto e das sugestões', emptyBox.btnTop >= emptyBox.chipsBottom - 1 && emptyBox.btnTop >= emptyBox.textBottom, JSON.stringify(emptyBox));
 await fresh.click('button[aria-label="Nova recorrência"]');
+await fresh.waitForSelector('.sheet');
+const monthBoxes = await fresh.evaluate(() => { const s = document.querySelector('.sheet').getBoundingClientRect(); return [...document.querySelectorAll('.sheet input[type=month]')].map((e) => { const r = e.getBoundingClientRect(); return r.left >= s.left && r.right <= s.right + 0.5; }); });
+check('zero: campos de mês cabem dentro do painel', monthBoxes.length === 2 && monthBoxes.every(Boolean), JSON.stringify(monthBoxes));
 await fresh.fill('.sheet input[placeholder^="Ex.: Aluguel"]', 'Academia');
 await fresh.fill('.sheet input[placeholder="0,00"]', '99,90');
 await fresh.fill('.sheet input[inputmode="numeric"]', '1');

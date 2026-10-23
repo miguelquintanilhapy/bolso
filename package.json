@@ -14,7 +14,8 @@
     "check": "npm run typecheck && npm test && npm run test:schema",
     "check:carousel": "node scripts/carousel-check.mjs",
     "qa:rls": "node scripts/qa/rls.mjs",
-    "qa:layout": "node scripts/qa/layout.mjs"
+    "qa:layout": "node scripts/qa/layout.mjs",
+    "qa:desktop": "node scripts/qa/desktop.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
