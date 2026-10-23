@@ -57,10 +57,14 @@ export function Accounts() {
                 <span className="main">
                   <b>{a.name}</b>
                   <small className={`wrap ${i.tone ?? ''}`}>{i.sub || KIND_LABEL[a.kind]}</small>
+                  {i.extra && <small>{i.extra}</small>}
                 </span>
                 <span className="side">
                   <b className={a.kind === 'checking' && i.main < 0 ? 'red' : ''}><Money value={i.main} /></b>
-                  {i.status === 'overdue' ? <span className="badge over">Vencida</span> : i.caption ? <small>{i.caption}</small> : null}
+                  {i.caption && <small>{i.caption}</small>}
+                  {i.status === 'overdue' ? <span className="badge over">Vencida</span>
+                    : i.dueInDays !== undefined && i.dueInDays >= 0 && i.dueInDays <= 5 ? <span className="badge pending">{i.dueInDays === 0 ? 'Vence hoje' : `Vence em ${i.dueInDays}d`}</span>
+                    : a.kind === 'checking' && i.main < 0 ? <span className="badge over">Saldo negativo</span> : null}
                 </span>
               </button>
             );
@@ -173,6 +177,7 @@ export function AccountDetail() {
                 <span className={`badge ${statusStyle}`}>{statusText}</span>
               </div>
               <Hero value={inv.total} small />
+              <p className="hint" style={{ marginTop: 2 }}>Só as compras desta fatura. O total que você deve no cartão está em “Limite”, abaixo.</p>
               <div className="kv" style={{ marginTop: 10 }}>
                 <span>{daysToClose >= 0 ? 'Fecha em' : 'Fechou em'}</span>
                 <b>{shortDate(inv.closingDate)}{daysToClose > 0 ? ` · em ${daysToClose} dia${daysToClose > 1 ? 's' : ''}` : daysToClose === 0 ? ' · hoje' : ''}</b>
@@ -196,7 +201,7 @@ export function AccountDetail() {
                   <div className={`meter ${level}`} style={{ margin: '10px 0' }} role="progressbar" aria-valuenow={ov.limitUsedPct ?? 0} aria-valuemin={0} aria-valuemax={100} aria-label="Limite usado">
                     <i style={{ width: `${ov.limitUsedPct ?? 0}%` }} />
                   </div>
-                  <div className="kv"><span>Usado ({ov.limitUsedPct}%)</span><b><Money value={ov.committed} /></b></div>
+                  <div className="kv"><span>Usado ({ov.limitUsedPct}%) · todas as faturas</span><b><Money value={ov.committed} /></b></div>
                   <div className="kv"><span>Disponível</span><b className="green"><Money value={ov.limitAvailable ?? 0} /></b></div>
                 </>
               ) : (

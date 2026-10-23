@@ -16,14 +16,20 @@ export function Transactions() {
   const { editTx, newTx } = useEditor();
   const nav = useNavigate();
   const { id } = useParams();
-  const [month, setMonth] = useState(monthOf(s.today));
-  const [allTime, setAllTime] = useState(false);
-  const [type, setType] = useState<Type>('all');
-  const [q, setQ] = useState('');
+  // lembra filtros e mês ao ir para outra tela e voltar (só nesta sessão)
+  const saved = useMemo(() => { try { return JSON.parse(sessionStorage.getItem('bolso:extrato') ?? '{}') as Record<string, unknown>; } catch { return {}; } }, []);
+  const [month, setMonth] = useState((saved.month as string) || monthOf(s.today));
+  const [allTime, setAllTime] = useState(!!saved.allTime);
+  const [type, setType] = useState<Type>((saved.type as Type) || 'all');
+  const [q, setQ] = useState((saved.q as string) || '');
   const [showFilters, setShowFilters] = useState(false);
-  const [accountId, setAccountId] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [tag, setTag] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [accountId, setAccountId] = useState((saved.accountId as string) || '');
+  const [categoryId, setCategoryId] = useState((saved.categoryId as string) || '');
+  const [tag, setTag] = useState((saved.tag as string) || '');
+  useEffect(() => {
+    try { sessionStorage.setItem('bolso:extrato', JSON.stringify({ month, allTime, type, q, accountId, categoryId, tag })); } catch { /* sem armazenamento */ }
+  }, [month, allTime, type, q, accountId, categoryId, tag]);
 
   // /lancamentos/:id (links de notificações) abre o editor sobre a lista
   useEffect(() => {
@@ -65,13 +71,19 @@ export function Transactions() {
       <div className="split rev">
       <div className="split-col aside">
       <div style={{ display: 'flex', gap: 8 }}>
-        <label className="search" style={{ flex: 1 }}>
+        <label className="search ios" style={{ flex: 1 }}>
           <Search size={18} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar descrição, tag, categoria…" aria-label="Buscar" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar descrição, tag, categoria…" aria-label="Buscar" type="search" enterKeyHint="search"
+            onFocus={() => setSearching(true)} onBlur={() => setTimeout(() => setSearching(false), 150)} />
+          {q && <button type="button" className="clear-x" aria-label="Limpar busca" onClick={() => setQ('')}><X size={16} /></button>}
         </label>
-        <button className="icon-btn" onClick={() => setShowFilters((v) => !v)} aria-label="Filtros" aria-expanded={showFilters} style={activeFilters ? { outline: '2px solid var(--text)' } : undefined}>
-          <SlidersHorizontal size={20} />
-        </button>
+        {searching || q ? (
+          <button className="text-btn" onClick={() => { setQ(''); setSearching(false); (document.activeElement as HTMLElement | null)?.blur(); }}>Cancelar</button>
+        ) : (
+          <button className={`filter-btn ${activeFilters ? 'on' : ''}`} onClick={() => setShowFilters((v) => !v)} aria-label="Filtros" aria-expanded={showFilters}>
+            <SlidersHorizontal size={18} /> <span>Filtros{activeFilters ? ` · ${activeFilters}` : ''}</span>
+          </button>
+        )}
       </div>
 
       {activeFilters > 0 && !showFilters && (
@@ -109,6 +121,7 @@ export function Transactions() {
       ]} />
       {!allTime && <MonthNav month={month} onChange={setMonth} />}
 
+      {hasFilter && <p className="result-count" role="status">{filtered.length === 0 ? 'Nenhum resultado' : `${filtered.length} ${filtered.length === 1 ? 'resultado' : 'resultados'}`}{allTime ? ' em todo o período' : ''}</p>}
       <div className="mini-stats solo" style={{ marginTop: 0 }}>
         <div className="mini"><span>Entradas</span><b className="green"><Money value={inc} /></b></div>
         <div className="mini"><span>Saídas</span><b><Money value={exp} /></b></div>
