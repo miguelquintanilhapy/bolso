@@ -1,6 +1,6 @@
 import type { Account, Snapshot, Transaction } from './types';
 import { accountBalance, cardOverview, invoiceStatus, investmentStats, type InvoiceStatus } from './finance';
-import { monthLabel } from './dates';
+import { diffDays, monthLabel } from './dates';
 import { formatBRL, round2 } from './money';
 
 export interface AccountInfo {
@@ -10,6 +10,10 @@ export interface AccountInfo {
   caption: string;
   /** Linha de apoio: vencimento, limite livre, rendimento do mês… */
   sub: string;
+  /** Segunda linha de apoio (ex.: limite livre do cartão). */
+  extra?: string;
+  /** Cartão com fatura a pagar vencendo nos próximos dias. */
+  dueInDays?: number;
   tone?: 'green' | 'red';
   /** Só cartão: situação da fatura em foco. */
   status?: InvoiceStatus;
@@ -27,10 +31,11 @@ export function describeAccount(a: Account, txs: Transaction[], snaps: Snapshot[
     const payNow = round2(due.reduce((x, i) => x + i.remaining, 0));
     const f = due[0] ?? ov.focus;
     const status = invoiceStatus(f, today);
-    const limit = ov.limitAvailable != null ? ` · limite livre ${formatBRL(ov.limitAvailable)}` : '';
+    const limit = ov.limitAvailable != null ? `Limite livre ${formatBRL(ov.limitAvailable)}` : undefined;
+    const dueInDays = diffDays(f.dueDate, today);
     return payNow > 0
-      ? { main: payNow, caption: 'a pagar', sub: `${status === 'overdue' ? 'Venceu' : 'Vence'} ${dm(f.dueDate)}${limit}`, tone: status === 'overdue' ? 'red' : undefined, status, limitUsedPct: ov.limitUsedPct }
-      : { main: f.total, caption: `fatura de ${monthLabel(f.month, false)}`, sub: `Fecha ${dm(f.closingDate)}${limit}`, status, limitUsedPct: ov.limitUsedPct };
+      ? { main: payNow, caption: 'a pagar', sub: `${due.length > 1 ? `${due.length} faturas · ` : ''}${status === 'overdue' ? 'venceu' : 'vence'} ${dm(f.dueDate)}`.replace(/^./, (c) => c.toUpperCase()), extra: limit, dueInDays, tone: status === 'overdue' ? 'red' : undefined, status, limitUsedPct: ov.limitUsedPct }
+      : { main: f.total, caption: `fatura de ${monthLabel(f.month, false)}`, sub: `Fecha ${dm(f.closingDate)}`, extra: limit, status, limitUsedPct: ov.limitUsedPct };
   }
   if (a.kind === 'investment') {
     const st = investmentStats(a, txs, snaps, today);
@@ -40,5 +45,5 @@ export function describeAccount(a: Account, txs: Transaction[], snaps: Snapshot[
       tone: st.monthYield > 0 ? 'green' : st.monthYield < 0 ? 'red' : undefined, limitUsedPct: null,
     };
   }
-  return { main: accountBalance(a, txs, snaps, today), caption: '', sub: a.is_default ? 'Conta padrão do campo rápido' : '', limitUsedPct: null };
+  return { main: accountBalance(a, txs, snaps, today), caption: '', sub: a.is_default ? 'Usada no lançamento rápido' : '', limitUsedPct: null };
 }

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Pencil } from 'lucide-react';
 import { useStore } from '../store';
 import { Empty, MonthNav, SectionTitle } from '../ui/common';
 import { useEditor } from '../ui/editors';
@@ -26,6 +27,7 @@ export function Budgets() {
   const remaining = round2(totalLimit - totalSpent);
   const ratio = totalLimit ? totalSpent / totalLimit : 0;
   const level = ratio >= 1 ? 'over' : ratio >= 0.8 ? 'warn' : 'ok';
+  const worst = statuses.length ? [...statuses].sort((a, b) => b.ratio - a.ratio)[0] : null;
   const isCurrent = month === monthOf(s.today);
   const daysLeft = isCurrent ? daysInMonth(month) - Number(s.today.slice(8, 10)) + 1 : null;
 
@@ -57,6 +59,13 @@ export function Budgets() {
                 <i style={{ width: `${Math.min(100, ratio * 100)}%` }} />
               </div>
               <div className="row-between hint"><span><Money value={totalSpent} /> gastos</span><span>de <Money value={totalLimit} /></span></div>
+              {worst && (
+                <p className="summary-line" role="status">
+                  {worst.level === 'over' ? <><b>{worst.category.name}</b> estourou o limite em <b><Money value={Math.abs(worst.remaining)} /></b>.</>
+                    : worst.level === 'warn' ? <><b>{worst.category.name}</b> está perto do limite: restam <b><Money value={worst.remaining} /></b>.</>
+                    : <>Tudo dentro do limite. A categoria que mais pesa é <b>{worst.category.name}</b> ({Math.round(worst.ratio * 100)}%).</>}
+                </p>
+              )}
             </section>
           )}
 
@@ -64,14 +73,16 @@ export function Budgets() {
         <div className="split-col">
           {statuses.length > 0 && (
             <>
-              <SectionTitle title="Por categoria" action={<span className="muted" style={{ fontSize: 13 }}>Toque para ajustar o limite</span>} />
+              <SectionTitle title="Por categoria" />
+              <p className="hint-title tap-hint"><Pencil size={13} /> Toque numa categoria para ajustar o limite</p>
               <div className="group">
                 {statuses.map((b) => (
                   <button key={b.category.id} className="item" onClick={() => openCategory(b.category.id)}>
                     <Ring ratio={b.ratio} level={b.level}><CategoryIcon name={b.category.icon} size={18} /></Ring>
                     <span className="main">
                       <b>{b.category.name}</b>
-                      <small className="wrap"><Money value={b.spent} /> de <Money value={b.limit} /> · {Math.round(b.ratio * 100)}%</small>
+                      <small><Money value={b.spent} /> de <Money value={b.limit} /></small>
+                      <small className={`pct ${b.level}`}>{Math.round(b.ratio * 100)}%{b.level === 'over' ? ' · estourou' : b.level === 'warn' ? ' · perto do limite' : ''}</small>
                     </span>
                     <span className="side">
                       <b className={b.level === 'over' ? 'red' : ''}><Money value={Math.abs(b.remaining)} /></b>

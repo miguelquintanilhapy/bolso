@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowDown, ArrowLeftRight, ArrowUp, Bell, Check, ChevronRight, CircleHelp, Eye, EyeOff, Landmark, Receipt, Send, Share, TrendingDown, TrendingUp, Wallet, X } from 'lucide-react';
+import { ArrowDown, ArrowLeftRight, ArrowUp, Bell, Check, Search, ChevronRight, CircleHelp, Eye, EyeOff, Landmark, Receipt, Send, Share, TrendingDown, TrendingUp, Wallet, X } from 'lucide-react';
 import { useStore } from '../store';
 import { usePrivacy, Hero, Money } from '../ui/privacy';
 import { Empty, SectionTitle, TxRow, dayNet } from '../ui/common';
 import { useEditor } from '../ui/editors';
+import { useConfirm } from '../ui/confirm';
+import { openSearch } from '../ui/SearchPalette';
+import { collapseOverdue, findDuplicate } from '../lib/ux';
 import { ModalSheet } from '../ui/Sheet';
 import { INVOICE_STATUS, KIND_ICON, KIND_LABEL } from '../ui/accountUi';
 import { describeAccount } from '../lib/accountInfo';
@@ -41,6 +44,7 @@ export function Home() {
   const { hidden, toggle } = usePrivacy();
   const { newTx, openAccount } = useEditor();
   const nav = useNavigate();
+  const confirm = useConfirm();
   const inputRef = useRef<HTMLInputElement>(null);
   const sending = useRef(false); // trava contra duplo envio
   const [text, setText] = useState('');
@@ -62,7 +66,7 @@ export function Home() {
   const delta = Math.round((worth - worthBefore) * 100) / 100;
   const fc = useMemo(() => forecast(s.accounts, s.transactions, s.investment_snapshots, s.today), [s.accounts, s.transactions, s.investment_snapshots, s.today]);
   const sum = useMemo(() => monthSummary(s.transactions, monthOf(s.today)), [s.transactions, s.today]);
-  const soon = useMemo(() => upcoming(s.accounts, s.transactions, s.today, 7), [s.accounts, s.transactions, s.today]);
+  const soon = useMemo(() => collapseOverdue(upcoming(s.accounts, s.transactions, s.today, 7), s.today), [s.accounts, s.transactions, s.today]);
   const unread = s.notifications.filter((n) => !n.read).length;
   const recent = useMemo(
     () => [...s.transactions].filter((t) => t.date <= s.today).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8),
@@ -99,6 +103,10 @@ export function Home() {
       status: isCard || d.date <= s.today ? 'paid' : 'pending', account_id: acc.id, to_account_id: null, category_id: d.category_id,
       installment_group: null, installment_number: null, installment_total: null, recurrence_id: null, ref_month: null, invoice_ref: null,
     };
+    if (!d.installments || d.installments <= 1) {
+      const dup = findDuplicate(s.transactions, base);
+      if (dup && !(await confirm({ title: 'Parece repetido', message: `Você já lançou ${formatBRL(d.amount)} em “${d.description || 'sem descrição'}” neste dia. Lançar de novo?`, confirmLabel: 'Lançar de novo' }))) return;
+    }
     const typed = text;
     sending.current = true;
     setText(''); // limpa já: o segundo toque encontra o campo vazio
@@ -122,6 +130,7 @@ export function Home() {
       <div className="topbar">
         <Link to="/mais" className="avatar" aria-label="Seu perfil">{name[0]?.toUpperCase()}</Link>
         <div className="greeting grow"><small>{greeting()}</small><b>{name}</b></div>
+        <button className="icon-btn" onClick={openSearch} aria-label="Buscar em tudo"><Search size={20} /></button>
         <Link to="/notificacoes" className="icon-btn" aria-label={`Notificações${unread ? `, ${unread} não lidas` : ''}`}>
           <Bell size={21} />{unread > 0 && <span className="dot">{unread > 9 ? '9+' : unread}</span>}
         </Link>
@@ -170,11 +179,14 @@ export function Home() {
             <button className="send" disabled={!text.trim()} aria-label="Registrar"><Send size={18} /></button>
           </form>
 
-          <div className="actions" style={{ order: 3 }}>
+          <div className="hblock" style={{ order: 3 }}>
+          <p className="hint-title">Ou lance com mais detalhes</p>
+          <div className="actions">
             <button className="action" onClick={() => newTx({ kind: 'expense' })}><span className="circle"><ArrowUp size={22} /></span>Despesa</button>
             <button className="action" onClick={() => newTx({ kind: 'income' })}><span className="circle"><ArrowDown size={22} /></span>Receita</button>
             <button className="action" onClick={() => newTx({ kind: 'transfer' })}><span className="circle"><ArrowLeftRight size={22} /></span>Transferir</button>
             <button className="action" onClick={() => nav('/contas')}><span className="circle"><Landmark size={22} /></span>Contas</button>
+          </div>
           </div>
 
           {showSteps && (
@@ -230,12 +242,14 @@ export function Home() {
 
           {soon.length > 0 && (
             <div className="hblock" style={{ order: 6 }}>
-              <SectionTitle title="Próximos 7 dias" />
+              <SectionTitle title="A pagar e a receber" />
               <div className="group">
                 {soon.slice(0, 5).map((u) => (
                   <button key={u.id} className="item" onClick={() => nav(u.link)}>
                     <span className={`ico ${u.kind === 'income' ? 'in' : u.date < s.today ? 'bad' : ''}`}>{u.kind === 'invoice' ? <Wallet size={19} /> : u.kind === 'income' ? <ArrowDown size={19} /> : <ArrowUp size={19} />}</span>
-                    <span className="main"><b>{u.title}</b><small className={u.date < s.today ? 'red' : ''}>{u.date < s.today ? `Atrasado desde ${shortDate(u.date)}` : `Vence ${dayLabel(u.date, s.today).toLowerCase()} · ${shortDate(u.date)}`}</small></span>
+                    <span className="main"><b>{u.title}</b><small className={u.date < s.today ? 'red' : ''}>{u.date < s.today
+                      ? ((u as { count?: number }).count && (u as { count?: number }).count! > 1 ? `${(u as { count?: number }).count} atrasadas · desde ${shortDate(u.date)}` : `Atrasado desde ${shortDate(u.date)}`)
+                      : (/^\d/.test(dayLabel(u.date, s.today)) ? `Vence em ${dayLabel(u.date, s.today)}` : `Vence ${dayLabel(u.date, s.today).toLowerCase()} · ${shortDate(u.date)}`)}</small></span>
                     <span className="side"><b className={u.kind === 'income' ? 'green' : ''}><Money value={u.amount} signed={u.kind === 'income'} /></b></span>
                   </button>
                 ))}

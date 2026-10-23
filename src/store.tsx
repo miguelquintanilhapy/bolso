@@ -42,6 +42,7 @@ interface Ctx extends Data {
   insertMany: <T extends Row>(table: Table, rows: object[]) => Promise<T[]>;
   remove: (table: Table, ids: string[]) => Promise<void>;
   /** Apaga e oferece "Desfazer" por alguns segundos. */
+  removeCategoryWithUndo: (category: Category) => Promise<void>;
   removeWithUndo: (table: 'transactions' | 'recurrences' | 'investment_snapshots', rows: Row[], message: string) => Promise<void>;
   markRead: (ids: string[]) => Promise<void>;
   /** Marca um lançamento pendente como pago/recebido, com "Desfazer". */
@@ -253,6 +254,24 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
     });
   }, [remove, toast, merge]);
 
+  // apagar categoria: lançamentos e recorrências ficam sem categoria; "Desfazer" devolve tudo
+  const removeCategoryWithUndo = useCallback(async (category: Category) => {
+    const copy = structuredClone(category) as unknown as Record<string, unknown>;
+    const txIds = data.transactions.filter((t) => t.category_id === category.id).map((t) => t.id);
+    const recIds = data.recurrences.filter((r) => r.category_id === category.id).map((r) => r.id);
+    await db.remove('categories', [category.id]);
+    await reload();
+    toast(`Categoria "${category.name}" apagada`, {
+      label: 'Desfazer',
+      run: async () => {
+        await db.insert<Row>('categories', [copy]);
+        for (const id of txIds) await db.update('transactions', id, { category_id: category.id });
+        for (const id of recIds) await db.update('recurrences', id, { category_id: category.id });
+        await reload();
+      },
+    });
+  }, [data.transactions, data.recurrences, reload, toast]);
+
   const markRead = useCallback(async (ids: string[]) => {
     const targets = data.notifications.filter((n) => ids.includes(n.id) && !n.read);
     for (const n of targets) merge('notifications', [await db.update<AppNotification>('notifications', n.id, { read: true })]);
@@ -290,7 +309,7 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
   }, [reload]);
 
   const value: Ctx = {
-    ...data, user, today, mode: db.mode, reload, syncRecurrences, loadMs, refreshing, addTransactions, save, insertMany, remove, removeWithUndo, markRead, markPaid, flash,
+    ...data, user, today, mode: db.mode, reload, syncRecurrences, loadMs, refreshing, addTransactions, save, insertMany, remove, removeWithUndo, removeCategoryWithUndo, markRead, markPaid, flash,
     toasts, toast, dismissToast, signOut: async () => { await clearCache(); await db.signOut(); },
   };
 

@@ -16,8 +16,8 @@ export function Categories() {
         {s.categories.filter((c) => c.kind === kind).map((c) => (
           <button key={c.id} className="item" onClick={() => openCategory(c.id)}>
             <span className="ico" style={{ background: c.color, color: '#fff' }}><CategoryIcon name={c.icon} /></span>
-            <span className="main"><b>{c.name}</b><small>{c.keywords.length ? c.keywords.slice(0, 4).join(', ') + (c.keywords.length > 4 ? '…' : '') : 'Sem palavras-chave'}</small></span>
-            <span className="side">{c.budget_limit ? <><b><Money value={c.budget_limit} /></b><small>limite/mês</small></> : <small>sem limite</small>}</span>
+            <span className="main"><b>{c.name}</b><small className="clamp2">{c.keywords.length ? c.keywords.join(', ') : 'Sem palavras-chave'}</small></span>
+            <span className="side">{c.budget_limit ? <b><Money value={c.budget_limit} /><span className="per">/mês</span></b> : <small>sem limite</small>}</span>
           </button>
         ))}
       </div>
@@ -30,7 +30,7 @@ export function Categories() {
         <h1 className="title">Categorias e limites</h1>
         <button className="icon-btn" onClick={() => openCategory()} aria-label="Nova categoria"><Plus size={20} /></button>
       </div>
-      <p className="muted">As palavras-chave ensinam o campo rápido: digitar <b>50 mercado</b> cai em Alimentação se "mercado" estiver lá.</p>
+      <p className="muted">As palavras-chave ensinam o lançamento rápido: digitar <b>50 mercado</b> cai em Alimentação se "mercado" estiver lá.</p>
       {block('expense', 'Despesas')}
       {block('income', 'Receitas')}
     </div>

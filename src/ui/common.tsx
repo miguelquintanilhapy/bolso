@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { ArrowDown, ArrowLeftRight, ArrowUp, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useRef, useState, type ReactNode } from 'react';
+import { ArrowDown, ArrowLeftRight, ArrowUp, Check, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import type { Account, Category, Transaction } from '../lib/types';
 import { addMonthsToMonth, monthLabel } from '../lib/dates';
@@ -19,8 +19,10 @@ export function Pills<T extends string>({ value, options, onChange }: { value: T
 }
 
 export function Segmented<T extends string>({ value, options, onChange }: { value: T; options: { id: T; label: string }[]; onChange: (v: T) => void }) {
+  const i = Math.max(0, options.findIndex((o) => o.id === value));
   return (
-    <div className="seg" role="group">
+    <div className="seg thumb" role="group" style={{ '--i': i, '--n': options.length } as React.CSSProperties}>
+      <span className="seg-thumb" aria-hidden />
       {options.map((o) => (
         <button key={o.id} type="button" className={value === o.id ? 'active' : ''} aria-pressed={value === o.id} onClick={() => onChange(o.id)}>
           {o.label}
@@ -72,7 +74,8 @@ interface TxRowProps {
 
 /** Linha de lançamento no estilo das referências: ícone circular, título, subtítulo cinza e valor à direita. */
 export function TxRow({ tx, accounts, categories, onClick, showDate, hideAccount }: TxRowProps) {
-  const { markPaid, flash, today } = useStore();
+  const { markPaid, flash, today, removeWithUndo } = useStore();
+  const swipe = useSwipe(tx.status === 'pending' ? 152 : 76);
   const cat = categories.find((c) => c.id === tx.category_id);
   const acc = accounts.find((a) => a.id === tx.account_id);
   const to = accounts.find((a) => a.id === tx.to_account_id);
@@ -93,8 +96,15 @@ export function TxRow({ tx, accounts, categories, onClick, showDate, hideAccount
         showDate ? dm : null,
       ]
   ).filter(Boolean).join(' · ');
+  const click = () => { if (swipe.open) swipe.close(); else onClick(); };
   return (
-    <div className={`item ${flash.has(tx.id) ? 'flash' : ''}`} role="button" tabIndex={0} onClick={onClick}
+    <div className="swipe">
+      <div className="swipe-actions" style={{ visibility: swipe.dx === 0 && !swipe.open ? 'hidden' : 'visible' }}>
+        {pending && <button className="sw pay" tabIndex={swipe.open ? 0 : -1} onClick={() => { swipe.close(); void markPaid(tx); }}><Check size={20} strokeWidth={3} />{income ? 'Receber' : transfer ? 'Confirmar' : 'Pagar'}</button>}
+        <button className="sw del" tabIndex={swipe.open ? 0 : -1} onClick={() => { swipe.close(); void removeWithUndo('transactions', [tx], 'Lançamento apagado'); }}><Trash2 size={20} />Apagar</button>
+      </div>
+    <div className={`item ${flash.has(tx.id) ? 'flash' : ''} ${swipe.dragging ? 'dragging' : ''}`} role="button" tabIndex={0} onClick={click}
+      style={swipe.dx ? { transform: `translateX(${swipe.dx}px)` } : undefined} {...swipe.handlers}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
       <span className={`ico ${income ? 'in' : ''} ${late ? 'bad' : ''}`}>
         {transfer ? <ArrowLeftRight size={19} /> : cat ? <CategoryIcon name={cat.icon} /> : income ? <ArrowDown size={19} /> : <ArrowUp size={19} />}
@@ -113,5 +123,48 @@ export function TxRow({ tx, accounts, categories, onClick, showDate, hideAccount
         )}
       </span>
     </div>
+    </div>
   );
+}
+
+/** Deslizar a linha para a esquerda revela as ações (só toque/caneta; no mouse vale o clique). */
+function useSwipe(width: number) {
+  const [dx, setDx] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const [open, setOpen] = useState(false);
+  const st = useRef<{ x: number; y: number; base: number; axis: '' | 'x' | 'y'; moved: boolean } | null>(null);
+  const close = () => { setOpen(false); setDx(0); };
+  const handlers = {
+    onPointerDown: (e: React.PointerEvent) => {
+      if (e.pointerType === 'mouse') return;
+      st.current = { x: e.clientX, y: e.clientY, base: open ? -width : 0, axis: '', moved: false };
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      const g = st.current;
+      if (!g) return;
+      const mx = e.clientX - g.x, my = e.clientY - g.y;
+      if (!g.axis) {
+        if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
+        g.axis = Math.abs(mx) > Math.abs(my) * 1.4 ? 'x' : 'y';
+        if (g.axis === 'x') { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); setDragging(true); }
+      }
+      if (g.axis !== 'x') return;
+      g.moved = true;
+      const next = Math.min(0, Math.max(-width - 24, g.base + mx));
+      setDx(next < -width ? -width + (next + width) * 0.3 : next); // resistência além do limite
+    },
+    onPointerUp: () => {
+      const g = st.current;
+      st.current = null;
+      if (!g || g.axis !== 'x') return;
+      setDragging(false);
+      const shouldOpen = dx < -width * 0.4;
+      setOpen(shouldOpen);
+      setDx(shouldOpen ? -width : 0);
+      // o clique que o navegador dispara depois do arrasto não deve abrir o lançamento
+      if (g.moved) { const stop = (ev: Event) => { ev.stopPropagation(); ev.preventDefault(); }; window.addEventListener('click', stop, { capture: true, once: true }); setTimeout(() => window.removeEventListener('click', stop, true), 0); }
+    },
+    onPointerCancel: () => { st.current = null; setDragging(false); setDx(open ? -width : 0); },
+  };
+  return { dx: open && !dragging ? -width : dx, dragging, open, close, handlers };
 }

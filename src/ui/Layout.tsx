@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
-import { ChartNoAxesColumn, Ellipsis, House, PieChart, Plus, Receipt, WifiOff } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Link, NavLink, Outlet, useLocation, useNavigationType } from 'react-router-dom';
+import { ChartNoAxesColumn, Ellipsis, House, LoaderCircle, PieChart, Plus, Receipt, Search, WifiOff } from 'lucide-react';
 import { useStore } from '../store';
 import { useEditor } from './editors';
 import { getName } from '../lib/profile';
+import { SearchPalette, openSearch } from './SearchPalette';
 
 const items = [
   { to: '/', label: 'Início', icon: House, end: true },
@@ -32,14 +33,58 @@ function useOnline() {
   return online;
 }
 
+const scrollMem = new Map<string, number>();
+
 export function Layout() {
-  const { toasts, dismissToast, user } = useStore();
+  const { toasts, dismissToast, user, reload } = useStore();
+  const navType = useNavigationType();
   const { newTx } = useEditor();
-  const { pathname } = useLocation();
+  const { pathname, key } = useLocation();
+  const keyRef = useRef(key);
   const online = useOnline();
   const showFab = pathname.startsWith('/lancamentos');
   const section = pathname.split('/')[1] || 'inicio';
-  useEffect(() => { window.scrollTo(0, 0); }, [section]);
+  // voltar devolve a posição da rolagem; ir para uma tela nova começa no topo
+  useEffect(() => {
+    keyRef.current = key;
+    if (navType === 'REPLACE') return;
+    const y = navType === 'POP' ? scrollMem.get(key) ?? 0 : 0;
+    window.scrollTo(0, y);
+    const t = y ? setTimeout(() => window.scrollTo(0, y), 120) : undefined; // depois que a lista carrega
+    return () => clearTimeout(t);
+  }, [key, navType]);
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => scrollMem.set(keyRef.current, window.scrollY)); };
+    addEventListener('scroll', onScroll, { passive: true });
+    return () => removeEventListener('scroll', onScroll);
+  }, []);
+
+  // puxar para atualizar (celular)
+  const [pull, setPull] = useState(0);
+  const [spinning, setSpinning] = useState(false);
+  useEffect(() => {
+    let y0 = -1;
+    let dist = 0;
+    const small = () => matchMedia('(max-width: 1023px)').matches;
+    const start = (e: TouchEvent) => { y0 = window.scrollY <= 0 && small() && !document.querySelector('[role="dialog"], [role="alertdialog"]') ? e.touches[0].clientY : -1; dist = 0; };
+    const move = (e: TouchEvent) => {
+      if (y0 < 0) return;
+      dist = Math.max(0, e.touches[0].clientY - y0);
+      if (window.scrollY > 0) { y0 = -1; setPull(0); return; }
+      setPull(Math.min(80, dist * 0.45));
+    };
+    const end = () => {
+      if (y0 >= 0 && dist * 0.45 >= 56) { setSpinning(true); setPull(52); void Promise.all([reload(), new Promise((r) => setTimeout(r, 700))]).catch(() => {}).finally(() => { setSpinning(false); setPull(0); }); }
+      else setPull(0);
+      y0 = -1;
+    };
+    addEventListener('touchstart', start, { passive: true });
+    addEventListener('touchmove', move, { passive: true });
+    addEventListener('touchend', end);
+    addEventListener('touchcancel', end);
+    return () => { removeEventListener('touchstart', start); removeEventListener('touchmove', move); removeEventListener('touchend', end); removeEventListener('touchcancel', end); };
+  }, [reload]);
 
   // título grande que vira título compacto na barra translúcida ao rolar (como nas telas do iOS)
   const [barTitle, setBarTitle] = useState('');
@@ -69,7 +114,9 @@ export function Layout() {
   }, [newTx]);
   return (
     <>
+      <SearchPalette />
       <div className="status-fill" aria-hidden />
+      <div className={`ptr${pull ? ' on' : ''}${spinning ? ' spin' : ''}`} style={{ transform: `translate(-50%, ${pull - 44}px)`, opacity: Math.min(1, pull / 40) }} aria-hidden><LoaderCircle size={22} /></div>
       <div className={`inline-bar${barTitle ? ' on' : ''}`} aria-hidden>{barTitle}</div>
       {!online && <div className="offline" role="status"><WifiOff size={14} style={{ verticalAlign: -2 }} /> Sem conexão — o que você alterar agora pode não ser salvo.</div>}
       <div className="app"><div className="page" key={section}><Outlet /></div></div>
@@ -77,6 +124,7 @@ export function Layout() {
       <nav className="nav" aria-label="Navegação principal" style={{ '--i': tabIndex(pathname) } as React.CSSProperties}>
         <Link to="/" className="nav-brand" aria-label="Bolso, ir para o início"><img className="brand-logo" src="/logo.png" alt="Bolso" /><img className="brand-mark" src="/favicon-64.png" alt="" /></Link>
         <button className="nav-new" onClick={() => newTx()} aria-label="Novo lançamento"><Plus size={18} /><span className="lbl"> Novo lançamento</span> <kbd>N</kbd></button>
+        <button className="nav-search" onClick={openSearch} aria-label="Buscar em tudo"><Search size={18} /><span className="lbl">Buscar</span> <kbd>Ctrl K</kbd></button>
         <div className="nav-items">
           <span className="nav-pill" aria-hidden />
           {items.map(({ to, label, icon: I, end }) => (

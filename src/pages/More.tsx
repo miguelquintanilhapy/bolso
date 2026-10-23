@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bell, ChevronRight, Download, Eye, FileJson, Landmark, LogOut, Palette, Pencil, Repeat, Tags } from 'lucide-react';
 import { useStore } from '../store';
-import { Switch } from '../ui/common';
+import { Segmented, Switch } from '../ui/common';
 import { usePrivacy } from '../ui/privacy';
 import { ModalSheet } from '../ui/Sheet';
 import { getName, setName } from '../lib/profile';
@@ -26,6 +26,7 @@ export function More() {
   const [name, setNameState] = useState(() => getName(s.user.email));
   const [editName, setEditName] = useState(false);
   const [draft, setDraft] = useState('');
+  const [adv, setAdv] = useState(false);
   const saveName = () => { setName(draft); setNameState(getName(s.user.email)); setEditName(false); s.toast('Nome atualizado'); };
   const pick = (t: Theme) => {
     setTheme(t);
@@ -70,24 +71,30 @@ export function More() {
         <div className="item"><span className="ico"><Eye size={19} /></span><span className="main"><b>Ocultar valores</b><small>Esconde saldos e valores</small></span><Switch checked={hidden} onChange={toggle} label="Ocultar valores" /></div>
         <div className="item" style={{ flexWrap: 'wrap' }}>
           <span className="ico"><Palette size={19} /></span><span className="main"><b>Aparência</b></span>
-          <div className="seg" style={{ flexBasis: '100%' }}>
-            {(['auto', 'light', 'dark'] as Theme[]).map((t) => (
-              <button key={t} className={theme === t ? 'active' : ''} onClick={() => pick(t)}>{t === 'auto' ? 'Auto' : t === 'light' ? 'Claro' : 'Escuro'}</button>
-            ))}
+          <div style={{ flexBasis: '100%' }}>
+            <Segmented<Theme> value={theme} onChange={pick} options={[{ id: 'auto', label: 'Auto' }, { id: 'light', label: 'Claro' }, { id: 'dark', label: 'Escuro' }]} />
           </div>
         </div>
       </div>
 
       </div>
       <div className="col">
-      <span className="group-title">Seus dados</span>
       <div className="group">
+        <button className="item" onClick={() => setAdv((v) => !v)} aria-expanded={adv}>
+          <span className="ico"><Download size={19} /></span><span className="main"><b>Avançado</b><small>Exportar e fazer backup dos seus dados</small></span>
+          <ChevronRight className={`chev ${adv ? 'open' : ''}`} size={18} />
+        </button>
+        {adv && (
+          <>
+
         <button className="item" onClick={() => download(`bolso-${todayISO()}.csv`, transactionsToCSV(s.transactions, s.accounts, s.categories), 'text/csv;charset=utf-8')}>
           <span className="ico"><Download size={19} /></span><span className="main"><b>Exportar lançamentos (CSV)</b><small>Abre no Excel e no Google Planilhas</small></span>
         </button>
         <button className="item" onClick={() => download(`bolso-backup-${todayISO()}.json`, JSON.stringify({ accounts: s.accounts, categories: s.categories, transactions: s.transactions, recurrences: s.recurrences, investment_snapshots: s.investment_snapshots }, null, 2), 'application/json')}>
           <span className="ico"><FileJson size={19} /></span><span className="main"><b>Backup completo (JSON)</b><small>Todas as contas, categorias e lançamentos</small></span>
         </button>
+          </>
+        )}
       </div>
 
       <div className="group">

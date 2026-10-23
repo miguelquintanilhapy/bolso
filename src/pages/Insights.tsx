@@ -6,7 +6,7 @@ import { CategoryIcon } from '../ui/icons';
 import { Money, useMaskedText } from '../ui/privacy';
 import { useEditor } from '../ui/editors';
 import { accountBalance, activeAccounts, monthSummary, monthlyEvolution, netWorthSeries, spendingByCategory } from '../lib/finance';
-import { monthLabel, monthOf, monthShort } from '../lib/dates';
+import { addMonthsToMonth, monthLabel, monthOf, monthShort } from '../lib/dates';
 import { round2 } from '../lib/money';
 
 type Tab = 'summary' | 'evolution' | 'worth';
@@ -32,10 +32,20 @@ function Summary() {
   const sum = monthSummary(s.transactions, month);
   const cats = useMemo(() => spendingByCategory(s.transactions, month), [s.transactions, month]);
   const total = cats.reduce((a, c) => a + c.total, 0);
+  const prev = monthSummary(s.transactions, addMonthsToMonth(month, -1));
+  const change = prev.expense > 0 ? Math.round(((sum.expense - prev.expense) / prev.expense) * 100) : null;
+  const topCat = cats[0] ? s.categories.find((x) => x.id === cats[0].categoryId)?.name ?? 'Sem categoria' : null;
   const top = useMemo(() => s.transactions.filter((t) => t.kind === 'expense' && monthOf(t.date) === month).sort((a, b) => b.amount - a.amount).slice(0, 5), [s.transactions, month]);
   return (
     <>
       <MonthNav month={month} onChange={setMonth} />
+      {sum.expense > 0 && (
+        <p className="summary-line" role="status" style={{ marginTop: -4 }}>
+          Você gastou <b><Money value={sum.expense} /></b> em {monthLabel(month, false)}
+          {change !== null && change !== 0 ? <>, {Math.abs(change)}% {change > 0 ? 'a mais' : 'a menos'} que no mês anterior</> : null}.
+          {topCat && <> A maior parte foi com <b>{topCat}</b> ({total ? Math.round((cats[0].total / total) * 100) : 0}%).</>}
+        </p>
+      )}
       <div className="grid3">
         <div className="card" style={{ padding: 11 }}><span className="muted" style={{ fontSize: 12.5 }}>Entradas</span><b className="green" style={{ display: 'block' }}><Money value={sum.income} /></b></div>
         <div className="card" style={{ padding: 11 }}><span className="muted" style={{ fontSize: 12.5 }}>Saídas</span><b style={{ display: 'block' }}><Money value={sum.expense} /></b></div>

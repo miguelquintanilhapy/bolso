@@ -10,6 +10,13 @@ page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 page.on('console', (m) => m.type() === 'error' && errors.push('console: ' + m.text()));
 
 let failed = 0;
+// fecha o painel com Esc; se aparecer "Descartar alterações?", confirma
+const esc = async (pg) => {
+  await pg.keyboard.press('Escape'); await pg.waitForTimeout(250);
+  const d = pg.locator('.ios-alert button.danger');
+  if (await d.count()) await d.click();
+  await pg.waitForSelector('.overlay', { state: 'detached', timeout: 2000 }).catch(() => {});
+};
 const check = (name, ok, extra = '') => { console.log(ok ? 'ok  ' : 'FAIL', name, ok ? '' : extra); if (!ok) failed++; };
 const shot = async (n) => { await page.waitForTimeout(750); await page.screenshot({ path: `${shots}/${n}.png`, fullPage: false }); };
 const text = (sel) => page.locator(sel).first().innerText();
@@ -187,7 +194,7 @@ check('arrastar o painel para baixo fecha', true);
 
 // Esc fecha
 await page.click('button[aria-label="Novo lançamento"]'); await page.waitForSelector('.sheet');
-await page.keyboard.press('Escape');
+await esc(page);
 await page.waitForSelector('.sheet', { state: 'detached', timeout: 3000 });
 check('Esc fecha o painel', true);
 
@@ -204,7 +211,7 @@ await shot('23-confirmacao');
 await page.click('[aria-label="Apagar conta?"] button:has-text("Cancelar")');
 await page.waitForTimeout(500);
 check('cancelar mantém a conta', (await page.locator('.sheet[aria-label="Editar investimento"]').count()) === 1);
-await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+await esc(page); await page.waitForTimeout(400);
 
 // investimento: aportar muda o saldo na hora e o patrimônio não cai
 await go('/');
@@ -254,7 +261,7 @@ check('cartão pede fechamento e vencimento vazios', (await page.inputValue('.sh
 await shot('25-cadastro-cartao');
 await page.fill('.sheet input[placeholder="Ex.: 10"]', '8'); await page.fill('.sheet input[placeholder="Ex.: 17"]', '15');
 check('mostra como as compras vão cair na fatura', (await page.locator('.sheet .callout').innerText()).includes('até o dia 8'));
-await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+await esc(page); await page.waitForTimeout(400);
 
 // ajuda do campo rápido
 await go('/');
@@ -299,6 +306,116 @@ await page.waitForLoadState('load'); await page.waitForTimeout(1500);
 const leftover = await page.evaluate(() => new Promise((res) => { const r = indexedDB.open('bolso-cache'); r.onsuccess = () => { const db = r.result; if (!db.objectStoreNames.contains('kv')) return res(0); const q = db.transaction('kv').objectStore('kv').getAll(); q.onsuccess = () => res(q.result.reduce((n, d) => n + (d.transactions?.length ?? 0) + (d.accounts?.length ?? 0), 0)); }; r.onerror = () => res(-1); }));
 check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta sobra)', leftover === 0, `sobraram ${leftover} registros`);
 
+// ── regras de usabilidade (descartar, prévia, duplicado, gestos, busca global…)
+{
+  const uxCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, locale: 'pt-BR', reducedMotion: 'reduce' });
+  const ux = await uxCtx.newPage();
+  const uxErrors = [];
+  ux.on('pageerror', (e) => uxErrors.push(e.message));
+  const goto = (p) => ux.evaluate((x) => { history.pushState({}, '', x); dispatchEvent(new PopStateEvent('popstate')); }, p);
+  await ux.goto(`${url}/?demo`); await ux.waitForSelector('.hero');
+
+  // grupo de atrasadas vira uma linha só
+  check('ux: atrasadas do mesmo cartão viram uma linha', (await ux.locator('.group .item:has-text("atrasadas")').count()) === 1);
+
+  // prévia, atalhos de valor e descartar
+  await ux.click('.action:has-text("Despesa")'); await ux.waitForSelector('.sheet');
+  await ux.fill('.amount-input', '50');
+  check('ux: prévia mostra saldo antes → depois', /→/.test(await ux.locator('.effect').innerText()));
+  await ux.click('.quick-amounts button:has-text("+10")');
+  check('ux: atalho +10 soma ao valor', (await ux.inputValue('.amount-input')) === '60');
+  check('ux: controle segmentado tem marcador deslizante', (await ux.locator('.sheet .seg-thumb').count()) > 0);
+  await ux.keyboard.press('Escape'); await ux.waitForSelector('.ios-alert');
+  check('ux: fechar com dados pede para descartar', /Descartar/.test(await ux.locator('.ios-alert').innerText()));
+  await ux.click('.ios-alert button:has-text("Cancelar")'); await ux.waitForTimeout(300);
+  check('ux: cancelar mantém o painel e o valor', (await ux.locator('.sheet').count()) === 1 && (await ux.inputValue('.amount-input')) === '60');
+
+  // duplicado
+  await ux.fill('.amount-input', '38,40');
+  await ux.fill('.sheet input[placeholder="Ex.: Mercado"]', 'Padaria');
+  await ux.click('.sheet .btn.primary'); await ux.waitForSelector('.ios-alert');
+  check('ux: lançamento igual pergunta se é repetido', /repetido/i.test(await ux.locator('.ios-alert').innerText()));
+  await ux.click('.ios-alert button:has-text("Cancelar")'); await ux.waitForTimeout(250);
+  await ux.fill('.amount-input', '38,41');
+  await ux.click('.sheet .btn.primary');
+  await ux.waitForSelector('.sheet', { state: 'detached' });
+  check('ux: mudando o valor salva sem aviso', (await ux.locator('.toast:has-text("salvo")').count()) === 1);
+
+  // sugestões da descrição
+  await ux.click('.action:has-text("Despesa")'); await ux.waitForSelector('.sheet');
+  await ux.fill('.sheet input[placeholder="Ex.: Mercado"]', 'Pada');
+  check('ux: sugere descrições já usadas', (await ux.locator('.suggest .chip:has-text("Padaria")').count()) > 0);
+  await ux.click('.suggest .chip:has-text("Padaria")');
+  check('ux: sugestão preenche descrição e categoria', (await ux.inputValue('.sheet input[placeholder="Ex.: Mercado"]')) === 'Padaria' && (await ux.locator('.sheet .chip.active:has-text("Alimentação")').count()) === 1);
+  await esc(ux);
+
+  // deslizar a linha (toque) revela apagar; desfazer devolve
+  await goto('/lancamentos'); await ux.waitForSelector('.swipe');
+  const row = ux.locator('.swipe:has(.item:has-text("Netflix")) .item').first();
+  const before = await ux.locator('.item:has-text("Netflix")').count();
+  await row.evaluate((e) => e.scrollIntoView({ block: 'center' })); await ux.waitForTimeout(250);
+  const box = await row.boundingBox();
+  const cdp = await uxCtx.newCDPSession(ux);
+  const y = box.y + box.height / 2; const x0 = box.x + box.width - 30;
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y }] });
+  for (let i = 1; i <= 8; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 - i * 18, y }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await ux.waitForTimeout(450);
+  check('ux: deslizar a linha revela as ações', await ux.locator('.swipe:has(.item:has-text("Netflix")) .sw.del').first().isVisible());
+  await ux.click('.swipe:has(.item:has-text("Netflix")) .sw.del');
+  await ux.waitForSelector('.toast:has-text("apagado")');
+  check('ux: apagar pelo gesto remove a linha', (await ux.locator('.item:has-text("Netflix")').count()) === before - 1);
+  await ux.click('.toast button:has-text("Desfazer")'); await ux.waitForTimeout(400);
+  check('ux: desfazer devolve a linha', (await ux.locator('.item:has-text("Netflix")').count()) === before);
+
+  // extrato lembra a busca ao voltar
+  await ux.fill('input[aria-label="Buscar"]', 'uber');
+  check('ux: busca mostra quantos resultados', /resultado/.test(await ux.locator('.result-count').innerText()));
+  await ux.click('nav a:has-text("Mais")'); await ux.waitForSelector('.page-title:has-text("Mais")');
+  check('ux: "Avançado" começa recolhido', (await ux.locator('text=Exportar lançamentos').count()) === 0);
+  await ux.click('nav a:has-text("Extrato")'); await ux.waitForSelector('input[aria-label="Buscar"]');
+  check('ux: extrato lembra a busca ao voltar', (await ux.inputValue('input[aria-label="Buscar"]')) === 'uber');
+  await ux.click('button:has-text("Cancelar")'); await ux.waitForTimeout(200);
+
+  // busca global
+  await ux.keyboard.press('Control+k'); await ux.waitForSelector('.palette');
+  await ux.fill('.palette input', 'netflix'); await ux.waitForTimeout(200);
+  check('ux: busca global acha o lançamento', (await ux.locator('.palette-row:has-text("Netflix")').count()) > 0);
+  await ux.keyboard.press('Enter'); await ux.waitForSelector('.sheet');
+  check('ux: Enter na busca abre o lançamento', (await ux.locator('.palette').count()) === 0);
+  await esc(ux);
+
+  // orçamento / insights explicam o estado
+  await goto('/orcamentos'); await ux.waitForSelector('.summary-line');
+  check('ux: orçamento resume o estado em uma frase', (await ux.locator('.summary-line').innerText()).length > 20);
+  check('ux: orçamento mostra porcentagem e estado por categoria', (await ux.locator('small.pct').count()) > 0);
+  await goto('/insights'); await ux.waitForSelector('.summary-line');
+  check('ux: insights começa com uma frase-resumo', /gastou/.test(await ux.locator('.summary-line').innerText()));
+
+  // recorrências: próxima data
+  await goto('/recorrencias'); await ux.waitForSelector('.item');
+  check('ux: recorrência mostra a próxima data', (await ux.locator('.item small:has-text("Próximo:")').count()) > 0);
+
+  // categoria: apagar com desfazer (sem pergunta)
+  await goto('/categorias'); await ux.waitForSelector('.item');
+  const cats0 = await ux.locator('.item').count();
+  await ux.click('.item:has-text("Assinaturas")'); await ux.waitForSelector('.sheet');
+  await ux.click('.sheet button:has-text("Apagar categoria")'); await ux.waitForSelector('.toast:has-text("apagada")');
+  check('ux: apagar categoria não pergunta e oferece desfazer', (await ux.locator('.ios-alert').count()) === 0 && (await ux.locator('.item').count()) === cats0 - 1);
+  await ux.click('.toast button:has-text("Desfazer")'); await ux.waitForTimeout(500);
+  check('ux: desfazer devolve a categoria', (await ux.locator('.item').count()) === cats0);
+
+  // puxar para atualizar
+  await goto('/'); await ux.waitForSelector('.hero'); await ux.evaluate(() => scrollTo(0, 0));
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 200, y: 120 }] });
+  for (let i = 1; i <= 8; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 200, y: 120 + i * 25 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await ux.waitForTimeout(150);
+  check('ux: puxar para atualizar mostra o indicador', (await ux.locator('.ptr.spin').count()) === 1);
+  check('ux: sem erros', uxErrors.length === 0, uxErrors.join('\n'));
+  await uxCtx.close();
+}
+
 // ── computador e tablet
 {
   const desk = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
@@ -320,7 +437,7 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   const sh = await box('.sheet');
   check('computador: atalho N abre o formulário', true);
   check('computador: painel vira janela centralizada', Math.abs(sh.x + sh.width / 2 - 640) < 3 && sh.y > 10 && sh.y + sh.height < 790 && sh.width <= 565, JSON.stringify(sh));
-  await desk.keyboard.press('Escape'); await desk.waitForSelector('.sheet', { state: 'detached' });
+  await esc(desk); await desk.waitForSelector('.sheet', { state: 'detached' });
   await desk.keyboard.press('/');
   check('computador: atalho / foca o lançamento rápido', await desk.evaluate(() => document.activeElement?.getAttribute('aria-label') === 'Lançamento rápido'));
   for (const path of ['/lancamentos', '/orcamentos', '/insights', '/mais', '/contas']) {
