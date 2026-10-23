@@ -41,6 +41,17 @@ export function Layout() {
   const section = pathname.split('/')[1] || 'inicio';
   useEffect(() => { window.scrollTo(0, 0); }, [section]);
 
+  // título grande que vira título compacto na barra translúcida ao rolar (como nas telas do iOS)
+  const [barTitle, setBarTitle] = useState('');
+  useEffect(() => {
+    setBarTitle('');
+    const el = document.querySelector<HTMLElement>('.topbar .page-title');
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => setBarTitle(!e.isIntersecting && e.boundingClientRect.top < 0 ? el.textContent ?? '' : ''), { rootMargin: '-6px 0px 0px 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [section]);
+
   // atalhos de teclado (computador): N = novo lançamento · / = buscar ou lançamento rápido
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -59,6 +70,7 @@ export function Layout() {
   return (
     <>
       <div className="status-fill" aria-hidden />
+      <div className={`inline-bar${barTitle ? ' on' : ''}`} aria-hidden>{barTitle}</div>
       {!online && <div className="offline" role="status"><WifiOff size={14} style={{ verticalAlign: -2 }} /> Sem conexão — o que você alterar agora pode não ser salvo.</div>}
       <div className="app"><div className="page" key={section}><Outlet /></div></div>
       {showFab && <button className="fab" onClick={() => newTx()} aria-label="Novo lançamento"><Plus size={26} /></button>}
