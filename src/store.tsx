@@ -42,7 +42,7 @@ interface Ctx extends Data {
   insertMany: <T extends Row>(table: Table, rows: object[]) => Promise<T[]>;
   remove: (table: Table, ids: string[]) => Promise<void>;
   /** Apaga e oferece "Desfazer" por alguns segundos. */
-  removeWithUndo: (table: 'transactions' | 'recurrences', rows: Row[], message: string) => Promise<void>;
+  removeWithUndo: (table: 'transactions' | 'recurrences' | 'investment_snapshots', rows: Row[], message: string) => Promise<void>;
   markRead: (ids: string[]) => Promise<void>;
   /** Marca um lançamento pendente como pago/recebido, com "Desfazer". */
   markPaid: (tx: Transaction) => Promise<void>;
@@ -241,7 +241,7 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
     drop(table, ids);
   }, [drop]);
 
-  const removeWithUndo = useCallback(async (table: 'transactions' | 'recurrences', rows: Row[], message: string) => {
+  const removeWithUndo = useCallback(async (table: 'transactions' | 'recurrences' | 'investment_snapshots', rows: Row[], message: string) => {
     const copies = structuredClone(rows) as Record<string, unknown>[];
     await remove(table, rows.map((r) => r.id));
     toast(message, {
