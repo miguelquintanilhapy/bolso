@@ -12,7 +12,7 @@ export function Notifications() {
   const list = [...s.notifications].sort((a, b) => b.created_at.localeCompare(a.created_at));
   const unread = list.filter((n) => !n.read);
   return (
-    <div className="screen">
+    <div className="screen narrow">
       <div className="topbar">
         <Link to="/" className="back" aria-label="Voltar"><ArrowLeft size={20} /></Link>
         <h1 className="title">Notificações</h1>

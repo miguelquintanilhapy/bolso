@@ -42,29 +42,35 @@ function Summary() {
         <div className="card" style={{ padding: 11 }}><span className="muted" style={{ fontSize: 12.5 }}>Saldo</span><b className={sum.net < 0 ? 'red' : 'green'} style={{ display: 'block' }}><Money value={sum.net} /></b></div>
       </div>
 
-      <SectionTitle title="Gastos por categoria" />
-      <div className="card stack" style={{ gap: 14 }}>
-        {cats.length === 0 && <p className="muted">Nenhuma despesa em {monthLabel(month, false)}.</p>}
-        {cats.map((c) => {
-          const cat = s.categories.find((x) => x.id === c.categoryId);
-          const pct = total ? (c.total / total) * 100 : 0;
-          return (
-            <div key={c.categoryId ?? 'none'} className="catbar">
-              <span className="ico"><CategoryIcon name={cat?.icon} size={15} /></span>
-              <span className="nm"><span>{cat?.name ?? 'Sem categoria'}</span><span className="muted">{pct.toFixed(0)}%</span></span>
-              <b style={{ fontSize: 14 }}><Money value={c.total} /></b>
-              <div className="meter blue" role="img" aria-label={`${cat?.name ?? 'Sem categoria'}: ${mask(c.total)}`}><i style={{ width: `${(c.total / cats[0].total) * 100}%` }} /></div>
-            </div>
-          );
-        })}
-      </div>
+      <div className="split">
+        <div className="split-col">
+          <SectionTitle title="Gastos por categoria" />
+          <div className="card stack" style={{ gap: 14 }}>
+            {cats.length === 0 && <p className="muted">Nenhuma despesa em {monthLabel(month, false)}.</p>}
+            {cats.map((c) => {
+              const cat = s.categories.find((x) => x.id === c.categoryId);
+              const pct = total ? (c.total / total) * 100 : 0;
+              return (
+                <div key={c.categoryId ?? 'none'} className="catbar">
+                  <span className="ico"><CategoryIcon name={cat?.icon} size={15} /></span>
+                  <span className="nm"><span>{cat?.name ?? 'Sem categoria'}</span><span className="muted">{pct.toFixed(0)}%</span></span>
+                  <b style={{ fontSize: 14 }}><Money value={c.total} /></b>
+                  <div className="meter blue" role="img" aria-label={`${cat?.name ?? 'Sem categoria'}: ${mask(c.total)}`}><i style={{ width: `${(c.total / cats[0].total) * 100}%` }} /></div>
+                </div>
+              );
+            })}
+          </div>
 
-      {top.length > 0 && (
-        <>
-          <SectionTitle title="Maiores gastos" />
-          <div className="list">{top.map((t) => <TxRow key={t.id} tx={t} accounts={s.accounts} categories={s.categories} showDate onClick={() => editTx(t.id)} />)}</div>
-        </>
-      )}
+        </div>
+        <div className="split-col">
+          {top.length > 0 && (
+            <>
+              <SectionTitle title="Maiores gastos" />
+              <div className="list">{top.map((t) => <TxRow key={t.id} tx={t} accounts={s.accounts} categories={s.categories} showDate onClick={() => editTx(t.id)} />)}</div>
+            </>
+          )}
+        </div>
+      </div>
     </>
   );
 }
@@ -79,13 +85,19 @@ function Evolution() {
   return (
     <>
       <Pills value={n} onChange={setN} options={[{ id: '6', label: '6 meses' }, { id: '12', label: '12 meses' }]} />
-      <div className="card">
-        <BarChart title="Entradas e saídas por mês" aLabel="Entradas" bLabel="Saídas"
-          groups={data.map((d) => ({ label: monthLabel(d.month), short: monthShort(d.month), a: d.income, b: d.expense }))} />
-      </div>
-      <div className="grid2">
-        <div className="card" style={{ padding: 14 }}><span className="muted" style={{ fontSize: 12.5 }}>Gasto médio por mês</span><b style={{ display: 'block', fontSize: 18 }}><Money value={avgExp} /></b></div>
-        <div className="card" style={{ padding: 14 }}><span className="muted" style={{ fontSize: 12.5 }}>Sobra média por mês</span><b className={avgNet < 0 ? 'red' : 'green'} style={{ display: 'block', fontSize: 18 }}><Money value={avgNet} /></b></div>
+      <div className="split even">
+        <div className="split-col">
+          <div className="card">
+            <BarChart title="Entradas e saídas por mês" aLabel="Entradas" bLabel="Saídas"
+              groups={data.map((d) => ({ label: monthLabel(d.month), short: monthShort(d.month), a: d.income, b: d.expense }))} />
+          </div>
+        </div>
+        <div className="split-col">
+          <div className="grid2">
+            <div className="card" style={{ padding: 14 }}><span className="muted" style={{ fontSize: 12.5 }}>Gasto médio por mês</span><b style={{ display: 'block', fontSize: 18 }}><Money value={avgExp} /></b></div>
+            <div className="card" style={{ padding: 14 }}><span className="muted" style={{ fontSize: 12.5 }}>Sobra média por mês</span><b className={avgNet < 0 ? 'red' : 'green'} style={{ display: 'block', fontSize: 18 }}><Money value={avgNet} /></b></div>
+          </div>
+        </div>
       </div>
     </>
   );
@@ -103,22 +115,28 @@ function Worth() {
   return (
     <>
       <Pills value={n} onChange={setN} options={[{ id: '6', label: '6 meses' }, { id: '12', label: '12 meses' }]} />
-      <div className="card">
-        <div className="row-between" style={{ marginBottom: 8 }}>
-          <span className="muted">Patrimônio total</span>
-          <span className={delta >= 0 ? 'green' : 'red'}><Money value={delta} signed /> no período</span>
-        </div>
-        <AreaChart title="Evolução do patrimônio" points={series.map((p) => ({ label: monthLabel(p.month), short: monthShort(p.month), value: p.value }))} />
-      </div>
-      <SectionTitle title="Composição atual" />
-      <div className="group">
-        {rows.map(({ a, v }) => (
-          <div key={a.id} className="item">
-            <span className="ico" style={{ background: a.color, color: '#fff' }}><CategoryIcon name={a.kind === 'credit' ? 'cash' : a.kind === 'investment' ? 'piggy' : 'bank'} /></span>
-            <span className="main"><b>{a.name}</b><small>{a.kind === 'credit' ? 'Cartão de crédito' : a.kind === 'investment' ? 'Investimento' : 'Conta corrente'}</small></span>
-            <span className="side"><b className={v < 0 ? 'red' : ''}><Money value={v} /></b></span>
+      <div className="split even">
+        <div className="split-col">
+          <div className="card">
+            <div className="row-between" style={{ marginBottom: 8 }}>
+              <span className="muted">Patrimônio total</span>
+              <span className={delta >= 0 ? 'green' : 'red'}><Money value={delta} signed /> no período</span>
+            </div>
+            <AreaChart title="Evolução do patrimônio" points={series.map((p) => ({ label: monthLabel(p.month), short: monthShort(p.month), value: p.value }))} />
           </div>
-        ))}
+        </div>
+        <div className="split-col">
+          <SectionTitle title="Composição atual" />
+          <div className="group">
+            {rows.map(({ a, v }) => (
+              <div key={a.id} className="item">
+                <span className="ico" style={{ background: a.color, color: '#fff' }}><CategoryIcon name={a.kind === 'credit' ? 'cash' : a.kind === 'investment' ? 'piggy' : 'bank'} /></span>
+                <span className="main"><b>{a.name}</b><small>{a.kind === 'credit' ? 'Cartão de crédito' : a.kind === 'investment' ? 'Investimento' : 'Conta corrente'}</small></span>
+                <span className="side"><b className={v < 0 ? 'red' : ''}><Money value={v} /></b></span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </>
   );

@@ -60,7 +60,7 @@ export function Transactions() {
   const hasFilter = activeFilters > 0 || !!q.trim() || type !== 'all';
 
   return (
-    <div className="screen">
+    <div className="screen narrow">
       <div className="topbar"><h1 className="title" style={{ fontSize: 22 }}>Extrato</h1></div>
       <div style={{ display: 'flex', gap: 8 }}>
         <label className="search" style={{ flex: 1 }}>

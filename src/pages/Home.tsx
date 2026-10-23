@@ -140,102 +140,111 @@ export function Home() {
         </div>
       )}
 
-      <section className="card" aria-label="Patrimônio">
-        <div className="balance-label">
-          <span>Patrimônio total</span>
-          <button className="eye" onClick={toggle} aria-label={hidden ? 'Mostrar valores' : 'Ocultar valores'}>{hidden ? <EyeOff size={18} /> : <Eye size={18} />}</button>
-        </div>
-        <Hero value={worth} />
-        {live.length > 0 && delta !== 0 && (
-          <p className={delta > 0 ? 'green' : 'red'} style={{ display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600, fontSize: 14, marginTop: 4 }}>
-            {delta > 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-            <Money value={Math.abs(delta)} /> <span style={{ fontWeight: 500 }}>neste mês</span>
-          </p>
-        )}
-        <div className="mini-stats">
-          <div className="mini"><span>Disponível agora</span><b><Money value={fc.liquidNow} /></b></div>
-          <div className="mini"><span>Previsto p/ fim de {monthName(monthOf(s.today))}</span><b><Money value={fc.projected} /></b></div>
-        </div>
-        <p className="hint">
-          {monthName(monthOf(s.today))}: <span className="green"><Money value={sum.income} signed /></span> entradas · <Money value={sum.expense} /> saídas
-        </p>
-      </section>
-
-      <form className="quick" onSubmit={quick}>
-        <input ref={inputRef} value={text} onChange={(e) => setText(e.target.value)} placeholder={`Digite: ${HINTS[hint]}`}
-          aria-label="Lançamento rápido" enterKeyHint="send" autoComplete="off" autoCapitalize="none" />
-        <button type="button" className="help" onClick={() => setHelp(true)} aria-label="Como usar o lançamento rápido"><CircleHelp size={20} /></button>
-        <button className="send" disabled={!text.trim()} aria-label="Registrar"><Send size={18} /></button>
-      </form>
-
-      <div className="actions">
-        <button className="action" onClick={() => newTx({ kind: 'expense' })}><span className="circle"><ArrowUp size={22} /></span>Despesa</button>
-        <button className="action" onClick={() => newTx({ kind: 'income' })}><span className="circle"><ArrowDown size={22} /></span>Receita</button>
-        <button className="action" onClick={() => newTx({ kind: 'transfer' })}><span className="circle"><ArrowLeftRight size={22} /></span>Transferir</button>
-        <button className="action" onClick={() => nav('/contas')}><span className="circle"><Landmark size={22} /></span>Contas</button>
-      </div>
-
-      {showSteps && (
-        <section className="card" aria-label="Primeiros passos">
-          <div className="row-between">
-            <b style={{ fontSize: 17 }}>Primeiros passos</b>
-            <span className="progress-dots" aria-label={`${doneCount} de ${steps.length} concluídos`}>{steps.map((x, i) => <i key={i} className={x.done ? 'on' : ''} />)}</span>
-          </div>
-          <div className="steps">
-            {steps.map((x, i) => (
-              <button key={x.title} className={`step ${x.done ? 'done' : ''}`} onClick={x.run} disabled={x.done}>
-                <span className="n">{x.done ? <Check size={16} strokeWidth={3} className="check-pop" /> : i + 1}</span>
-                <span style={{ flex: 1 }}><b>{x.title}</b><small>{x.sub}</small></span>
-                {!x.done && <ChevronRight size={18} className="muted" />}
-              </button>
-            ))}
-          </div>
-          <button className="link" style={{ marginTop: 6 }} onClick={() => { setLS('bolso:steps-off'); setStepsHidden(true); }}>Ocultar</button>
-        </section>
-      )}
-
-      {live.length > 0 && (
-        <>
-          <SectionTitle title="Suas contas" action={<Link className="link" to="/contas">Ver todas <ChevronRight size={16} /></Link>} />
-          <div className="carousel">
-            {live.map((a) => <AccountCard key={a.id} account={a} only={live.length === 1} />)}
-          </div>
-        </>
-      )}
-
-      {soon.length > 0 && (
-        <>
-          <SectionTitle title="Próximos 7 dias" />
-          <div className="group">
-            {soon.slice(0, 5).map((u) => (
-              <button key={u.id} className="item" onClick={() => nav(u.link)}>
-                <span className={`ico ${u.kind === 'income' ? 'in' : u.date < s.today ? 'bad' : ''}`}>{u.kind === 'invoice' ? <Wallet size={19} /> : u.kind === 'income' ? <ArrowDown size={19} /> : <ArrowUp size={19} />}</span>
-                <span className="main"><b>{u.title}</b><small className={u.date < s.today ? 'red' : ''}>{u.date < s.today ? `Atrasado desde ${shortDate(u.date)}` : `Vence ${dayLabel(u.date, s.today).toLowerCase()} · ${shortDate(u.date)}`}</small></span>
-                <span className="side"><b className={u.kind === 'income' ? 'green' : ''}><Money value={u.amount} signed={u.kind === 'income'} /></b></span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-
-      <SectionTitle title="Últimos lançamentos" action={<Link className="link" to="/lancamentos">Ver todos <ChevronRight size={16} /></Link>} />
-      {recent.length === 0 ? (
-        <div className="card">
-          <Empty icon={<Receipt size={26} />} title="Nenhum lançamento ainda"
-            action={live.length ? <button className="btn primary" onClick={() => inputRef.current?.focus()}>Fazer o primeiro lançamento</button> : undefined}>
-            Digite no campo rápido, por exemplo <code>50 mercado</code>.
-          </Empty>
-        </div>
-      ) : (
-        <div className="list">
-          {Object.entries(groups).map(([date, rows]) => (
-            <div key={date} className="list">
-              <div className="day-label"><span>{dayLabel(date, s.today)}</span><b><Money value={dayNet(rows)} signed /></b></div>
-              {rows.map((t) => <TxRow key={t.id} tx={t} accounts={s.accounts} categories={s.categories} onClick={() => nav(`/lancamentos/${t.id}`)} />)}
+      <div className="cols">
+        <div className="col col-a">
+          <section className="card" aria-label="Patrimônio" style={{ order: 1 }}>
+            <div className="balance-label">
+              <span>Patrimônio total</span>
+              <button className="eye" onClick={toggle} aria-label={hidden ? 'Mostrar valores' : 'Ocultar valores'}>{hidden ? <EyeOff size={18} /> : <Eye size={18} />}</button>
             </div>
-          ))}
+            <Hero value={worth} />
+            {live.length > 0 && delta !== 0 && (
+              <p className={delta > 0 ? 'green' : 'red'} style={{ display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600, fontSize: 14, marginTop: 4 }}>
+                {delta > 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                <Money value={Math.abs(delta)} /> <span style={{ fontWeight: 500 }}>neste mês</span>
+              </p>
+            )}
+            <div className="mini-stats">
+              <div className="mini"><span>Disponível agora</span><b><Money value={fc.liquidNow} /></b></div>
+              <div className="mini"><span>Previsto p/ fim de {monthName(monthOf(s.today))}</span><b><Money value={fc.projected} /></b></div>
+            </div>
+            <p className="hint">
+              {monthName(monthOf(s.today))}: <span className="green"><Money value={sum.income} signed /></span> entradas · <Money value={sum.expense} /> saídas
+            </p>
+          </section>
+
+          <form className="quick" onSubmit={quick} style={{ order: 2 }}>
+            <input ref={inputRef} value={text} onChange={(e) => setText(e.target.value)} placeholder={`Digite: ${HINTS[hint]}`}
+              aria-label="Lançamento rápido" enterKeyHint="send" autoComplete="off" autoCapitalize="none" />
+            <button type="button" className="help" onClick={() => setHelp(true)} aria-label="Como usar o lançamento rápido"><CircleHelp size={20} /></button>
+            <button className="send" disabled={!text.trim()} aria-label="Registrar"><Send size={18} /></button>
+          </form>
+
+          <div className="actions" style={{ order: 3 }}>
+            <button className="action" onClick={() => newTx({ kind: 'expense' })}><span className="circle"><ArrowUp size={22} /></span>Despesa</button>
+            <button className="action" onClick={() => newTx({ kind: 'income' })}><span className="circle"><ArrowDown size={22} /></span>Receita</button>
+            <button className="action" onClick={() => newTx({ kind: 'transfer' })}><span className="circle"><ArrowLeftRight size={22} /></span>Transferir</button>
+            <button className="action" onClick={() => nav('/contas')}><span className="circle"><Landmark size={22} /></span>Contas</button>
+          </div>
+
+          {showSteps && (
+            <section className="card" aria-label="Primeiros passos" style={{ order: 4 }}>
+              <div className="row-between">
+                <b style={{ fontSize: 17 }}>Primeiros passos</b>
+                <span className="progress-dots" aria-label={`${doneCount} de ${steps.length} concluídos`}>{steps.map((x, i) => <i key={i} className={x.done ? 'on' : ''} />)}</span>
+              </div>
+              <div className="steps">
+                {steps.map((x, i) => (
+                  <button key={x.title} className={`step ${x.done ? 'done' : ''}`} onClick={x.run} disabled={x.done}>
+                    <span className="n">{x.done ? <Check size={16} strokeWidth={3} className="check-pop" /> : i + 1}</span>
+                    <span style={{ flex: 1 }}><b>{x.title}</b><small>{x.sub}</small></span>
+                    {!x.done && <ChevronRight size={18} className="muted" />}
+                  </button>
+                ))}
+              </div>
+              <button className="link" style={{ marginTop: 6 }} onClick={() => { setLS('bolso:steps-off'); setStepsHidden(true); }}>Ocultar</button>
+            </section>
+          )}
+
+          <div className="block" style={{ order: 7 }}>
+            <SectionTitle title="Últimos lançamentos" action={<Link className="link" to="/lancamentos">Ver todos <ChevronRight size={16} /></Link>} />
+            {recent.length === 0 ? (
+              <div className="card">
+                <Empty icon={<Receipt size={26} />} title="Nenhum lançamento ainda"
+                  action={live.length ? <button className="btn primary" onClick={() => inputRef.current?.focus()}>Fazer o primeiro lançamento</button> : undefined}>
+                  Digite no campo rápido, por exemplo <code>50 mercado</code>.
+                </Empty>
+              </div>
+            ) : (
+              <div className="list">
+                {Object.entries(groups).map(([date, rows]) => (
+                  <div key={date} className="list">
+                    <div className="day-label"><span>{dayLabel(date, s.today)}</span><b><Money value={dayNet(rows)} signed /></b></div>
+                    {rows.map((t) => <TxRow key={t.id} tx={t} accounts={s.accounts} categories={s.categories} onClick={() => nav(`/lancamentos/${t.id}`)} />)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
         </div>
-      )}
+        <div className="col col-b">
+          {live.length > 0 && (
+            <div className="block" style={{ order: 5 }}>
+              <SectionTitle title="Suas contas" action={<Link className="link" to="/contas">Ver todas <ChevronRight size={16} /></Link>} />
+              <div className="carousel">
+                {live.map((a) => <AccountCard key={a.id} account={a} only={live.length === 1} />)}
+              </div>
+            </div>
+          )}
+
+          {soon.length > 0 && (
+            <div className="block" style={{ order: 6 }}>
+              <SectionTitle title="Próximos 7 dias" />
+              <div className="group">
+                {soon.slice(0, 5).map((u) => (
+                  <button key={u.id} className="item" onClick={() => nav(u.link)}>
+                    <span className={`ico ${u.kind === 'income' ? 'in' : u.date < s.today ? 'bad' : ''}`}>{u.kind === 'invoice' ? <Wallet size={19} /> : u.kind === 'income' ? <ArrowDown size={19} /> : <ArrowUp size={19} />}</span>
+                    <span className="main"><b>{u.title}</b><small className={u.date < s.today ? 'red' : ''}>{u.date < s.today ? `Atrasado desde ${shortDate(u.date)}` : `Vence ${dayLabel(u.date, s.today).toLowerCase()} · ${shortDate(u.date)}`}</small></span>
+                    <span className="side"><b className={u.kind === 'income' ? 'green' : ''}><Money value={u.amount} signed={u.kind === 'income'} /></b></span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
 
       <ModalSheet open={help} onClose={() => setHelp(false)} title="Lançamento rápido">
         <p className="muted">Digite o valor e uma palavra. O Bolso descobre a categoria sozinho e aprende palavras novas. Toque num exemplo para usar.</p>

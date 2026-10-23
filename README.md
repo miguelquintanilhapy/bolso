@@ -25,6 +25,14 @@ App web instalável no iPhone (PWA), com banco e login no Supabase e hospedagem 
 - **Ocultar valores** (olho), tema claro/escuro, exportação CSV e backup JSON.
 - **Fluidez:** pagar/receber pendentes com um toque na própria linha, "Desfazer" em ações, formulário com rodapé fixo (Salvar sempre visível), categoria sugerida enquanto você digita, atalhos Hoje/Ontem, painéis que se arrastam para fechar, barra de navegação com indicador deslizante, animações de entrada e nos gráficos (desligadas automaticamente em "Reduzir movimento"), aviso de offline e atualização dos dados ao voltar para o app.
 
+## Computador e tablet
+
+- **Celular (até 719 px):** barra de navegação inferior e painéis que sobem de baixo.
+- **Tablet (720 px+):** mesma barra inferior, conteúdo mais largo e painéis como janelas centralizadas.
+- **Computador (1024 px+):** menu lateral com a logo, botão "Novo lançamento" e perfil; início, orçamento, insights e detalhes de conta em duas colunas.
+- **Atalhos de teclado:** `N` novo lançamento · `/` buscar (ou lançamento rápido, no início) · `Esc` fecha janelas.
+- `scripts/desktop-shots.mjs` tira prints das telas em qualquer tamanho.
+
 ## Desempenho
 
 - Ao abrir, o app mostra na hora a **cópia local** dos dados (IndexedDB, apagada ao sair da conta) e atualiza por trás; só a primeira entrada num aparelho espera o servidor.

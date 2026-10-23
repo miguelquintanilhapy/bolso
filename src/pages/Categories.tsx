@@ -24,7 +24,7 @@ export function Categories() {
     </>
   );
   return (
-    <div className="screen">
+    <div className="screen narrow">
       <div className="topbar">
         <Link to="/mais" className="back" aria-label="Voltar"><ArrowLeft size={20} /></Link>
         <h1 className="title">Categorias e limites</h1>
