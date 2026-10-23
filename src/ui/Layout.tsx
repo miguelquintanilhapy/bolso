@@ -63,8 +63,8 @@ export function Layout() {
       <div className="app"><div className="page" key={section}><Outlet /></div></div>
       {showFab && <button className="fab" onClick={() => newTx()} aria-label="Novo lançamento"><Plus size={26} /></button>}
       <nav className="nav" aria-label="Navegação principal" style={{ '--i': tabIndex(pathname) } as React.CSSProperties}>
-        <Link to="/" className="nav-brand" aria-label="Bolso, ir para o início"><img className="brand-logo" src="/logo.png" alt="Bolso" /></Link>
-        <button className="nav-new" onClick={() => newTx()}><Plus size={18} /> Novo lançamento <kbd>N</kbd></button>
+        <Link to="/" className="nav-brand" aria-label="Bolso, ir para o início"><img className="brand-logo" src="/logo.png" alt="Bolso" /><img className="brand-mark" src="/favicon-64.png" alt="" /></Link>
+        <button className="nav-new" onClick={() => newTx()} aria-label="Novo lançamento"><Plus size={18} /><span className="lbl"> Novo lançamento</span> <kbd>N</kbd></button>
         <div className="nav-items">
           <span className="nav-pill" aria-hidden />
           {items.map(({ to, label, icon: I, end }) => (

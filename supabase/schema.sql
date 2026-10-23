@@ -151,7 +151,8 @@ begin
   end loop;
 end $$;
 
--- Reforço: lançamentos só podem apontar para contas da própria pessoa.
+-- Reforço: nada pode apontar para contas ou categorias de OUTRA pessoa (defesa em profundidade:
+-- os identificadores são aleatórios, mas o banco não deve depender disso).
 drop policy if exists "own rows" on public.transactions;
 create policy "own rows" on public.transactions for all to authenticated
   using (user_id = auth.uid())
@@ -159,6 +160,24 @@ create policy "own rows" on public.transactions for all to authenticated
     user_id = auth.uid()
     and account_id in (select id from public.accounts where user_id = auth.uid())
     and (to_account_id is null or to_account_id in (select id from public.accounts where user_id = auth.uid()))
+    and (category_id is null or category_id in (select id from public.categories where user_id = auth.uid()))
+  );
+
+drop policy if exists "own rows" on public.recurrences;
+create policy "own rows" on public.recurrences for all to authenticated
+  using (user_id = auth.uid())
+  with check (
+    user_id = auth.uid()
+    and account_id in (select id from public.accounts where user_id = auth.uid())
+    and (category_id is null or category_id in (select id from public.categories where user_id = auth.uid()))
+  );
+
+drop policy if exists "own rows" on public.investment_snapshots;
+create policy "own rows" on public.investment_snapshots for all to authenticated
+  using (user_id = auth.uid())
+  with check (
+    user_id = auth.uid()
+    and account_id in (select id from public.accounts where user_id = auth.uid())
   );
 
 -- ============================================================

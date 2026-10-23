@@ -196,7 +196,7 @@ export function Home() {
             </section>
           )}
 
-          <div className="block" style={{ order: 7 }}>
+          <div className="hblock" style={{ order: 7 }}>
             <SectionTitle title="Últimos lançamentos" action={<Link className="link" to="/lancamentos">Ver todos <ChevronRight size={16} /></Link>} />
             {recent.length === 0 ? (
               <div className="card">
@@ -220,7 +220,7 @@ export function Home() {
         </div>
         <div className="col col-b">
           {live.length > 0 && (
-            <div className="block" style={{ order: 5 }}>
+            <div className="hblock" style={{ order: 5 }}>
               <SectionTitle title="Suas contas" action={<Link className="link" to="/contas">Ver todas <ChevronRight size={16} /></Link>} />
               <div className="carousel">
                 {live.map((a) => <AccountCard key={a.id} account={a} only={live.length === 1} />)}
@@ -229,7 +229,7 @@ export function Home() {
           )}
 
           {soon.length > 0 && (
-            <div className="block" style={{ order: 6 }}>
+            <div className="hblock" style={{ order: 6 }}>
               <SectionTitle title="Próximos 7 dias" />
               <div className="group">
                 {soon.slice(0, 5).map((u) => (

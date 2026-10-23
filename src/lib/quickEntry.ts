@@ -1,6 +1,6 @@
 import type { Account, Category, TxKind } from './types';
 import { addDays, parseISO, toISO } from './dates';
-import { parseAmount } from './money';
+import { checkAmount } from './money';
 
 export const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
@@ -53,30 +53,38 @@ export function parseQuickEntry(
   let installments = 1;
   const tags: string[] = [];
   const rest: string[] = [];
+  let problem = ''; // valor que parece número mas não é válido (ex.: 1,2,3)
 
   for (let i = 0; i < tokens.length; i++) {
     const tok = tokens[i];
     if (tok.startsWith('#') && tok.length > 1) { tags.push(norm(tok.slice(1))); continue; }
     const inst = norm(tok).match(/^(\d{1,2})x$/);
-    if (inst && Number(inst[1]) >= 2) { installments = Number(inst[1]); continue; }
+    if (inst && Number(inst[1]) >= 2) {
+      if (Number(inst[1]) > 48) return { ok: false, reason: 'Parcelamento: no máximo 48 parcelas.' };
+      installments = Number(inst[1]);
+      continue;
+    }
     const dt = parseDateToken(tok, ctx.today);
     if (dt) { date = dt; continue; }
     if (amount === null) {
-      const a = parseAmount(tok);
-      if (a !== null) {
+      const chk = checkAmount(tok);
+      if ('value' in chk) {
+        const a = chk.value;
         amount = a;
         if (tok.startsWith('+')) explicitIncome = true;
         if (tok.startsWith('-')) explicitExpense = true;
         continue;
       }
       if (/^r\$$/i.test(tok) && tokens[i + 1]) {
-        const a2 = parseAmount(tokens[i + 1]);
-        if (a2 !== null) { amount = a2; i++; continue; }
+        const c2 = checkAmount(tokens[i + 1]);
+        if ('value' in c2) { amount = c2.value; i++; continue; }
       }
+      if (!problem && /^[+-]?(r\$)?\d[\d.,]*$/i.test(tok)) problem = `"${tok}": ${chk.message}`;
     }
     rest.push(tok);
   }
-  if (amount === null) return { ok: false, reason: 'Não achei um valor. Ex.: 50 mercado' };
+  if (amount === null) return { ok: false, reason: problem || 'Não achei um valor. Ex.: 50 mercado' };
+  if (installments > 1 && amount / installments < 0.01) return { ok: false, reason: `Valor pequeno demais para ${installments} parcelas (mínimo de R$ 0,01 cada).` };
 
   // conta: nome completo ou palavra única que identifique uma conta
   const live = ctx.accounts.filter((a) => !a.archived);
