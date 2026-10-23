@@ -50,7 +50,9 @@ export function Empty({ title, children, icon, action }: { title: string; childr
   return (
     <div className="empty">
       {icon && <div className="empty-ico" aria-hidden>{icon}</div>}
-      <b>{title}</b>{children}{action}
+      <b>{title}</b>
+      {children && <div className="empty-body">{children}</div>}
+      {action && <div className="empty-action">{action}</div>}
     </div>
   );
 }

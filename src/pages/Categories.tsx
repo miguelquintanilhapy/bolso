@@ -24,15 +24,17 @@ export function Categories() {
     </>
   );
   return (
-    <div className="screen narrow">
+    <div className="screen">
       <div className="topbar">
         <Link to="/mais" className="back" aria-label="Voltar"><ArrowLeft size={20} /></Link>
         <h1 className="title">Categorias e limites</h1>
         <button className="icon-btn" onClick={() => openCategory()} aria-label="Nova categoria"><Plus size={20} /></button>
       </div>
       <p className="muted">As palavras-chave ensinam o lançamento rápido: digitar <b>50 mercado</b> cai em Alimentação se "mercado" estiver lá.</p>
-      {block('expense', 'Despesas')}
-      {block('income', 'Receitas')}
+      <div className="split even">
+        <div className="split-col">{block('expense', 'Despesas')}</div>
+        <div className="split-col">{block('income', 'Receitas')}</div>
+      </div>
     </div>
   );
 }

@@ -73,7 +73,7 @@ export function Transactions() {
       <div style={{ display: 'flex', gap: 8 }}>
         <label className="search ios" style={{ flex: 1 }}>
           <Search size={18} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar descrição, tag, categoria…" aria-label="Buscar" type="search" enterKeyHint="search"
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar lançamentos" aria-label="Buscar" type="search" enterKeyHint="search"
             onFocus={() => setSearching(true)} onBlur={() => setTimeout(() => setSearching(false), 150)} />
           {q && <button type="button" className="clear-x" aria-label="Limpar busca" onClick={() => setQ('')}><X size={16} /></button>}
         </label>
