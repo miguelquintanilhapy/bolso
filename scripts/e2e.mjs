@@ -62,7 +62,7 @@ await page.evaluate(() => { history.pushState({}, '', '/'); dispatchEvent(new Po
 // páginas
 for (const [path, name, expect] of [
   ['/lancamentos', '03-lancamentos', 'Extrato'], ['/orcamentos', '04-orcamento', 'Orçamento'], ['/insights', '05-insights', 'Insights'],
-  ['/mais', '06-mais', 'Mais'], ['/contas', '07-contas', 'Contas e cartões'], ['/categorias', '08-categorias', 'Categorias'],
+  ['/mais', '06-mais', 'Mais'], ['/contas', '07-contas', 'Suas contas'], ['/categorias', '08-categorias', 'Categorias'],
   ['/recorrencias', '09-recorrencias', 'Recorrências'], ['/notificacoes', '10-notificacoes', 'Notificações'],
 ]) {
   const inNav = await page.locator(`nav a[href="${path}"]`).count();
@@ -88,7 +88,7 @@ await shot('13-tooltip');
 // conta de cartão e pagamento da fatura
 await page.evaluate(() => { history.pushState({}, '', '/contas'); dispatchEvent(new PopStateEvent('popstate')); });
 await page.click('.item:has-text("Nubank Cartão")');
-await page.waitForSelector('text=Fechamento');
+await page.waitForSelector('text=Vence em');
 await shot('14-cartao');
 await page.click('button:has-text("Pagar fatura")');
 await page.waitForSelector('.sheet');
@@ -196,14 +196,64 @@ let nativeDialog = false;
 page.on('dialog', async (d) => { nativeDialog = true; await d.dismiss(); });
 await go('/contas');
 await page.click('.item:has-text("Tesouro Selic")'); await page.waitForTimeout(400);
-await page.click('button[aria-label="Editar conta"]'); await page.waitForSelector('.sheet');
+await page.click('button[aria-label="Editar"]'); await page.waitForSelector('.sheet');
 await page.click('.sheet button:has-text("Apagar conta")');
 await page.waitForSelector('.sheet[aria-label="Apagar conta?"]');
 check('exclusão pede confirmação em painel do app', !nativeDialog);
 await shot('23-confirmacao');
 await page.click('.sheet[aria-label="Apagar conta?"] button:has-text("Cancelar")');
 await page.waitForTimeout(500);
-check('cancelar mantém a conta', (await page.locator('.sheet[aria-label="Editar conta"]').count()) === 1);
+check('cancelar mantém a conta', (await page.locator('.sheet[aria-label="Editar investimento"]').count()) === 1);
+await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+
+// investimento: aportar muda o saldo na hora e o patrimônio não cai
+await go('/');
+const worthBefore = Number(await page.locator('.hero').first().getAttribute('data-value'));
+await go('/contas');
+await page.click('.item:has-text("Tesouro Selic")'); await page.waitForTimeout(500);
+const invBefore = Number(await page.locator('.hero').first().getAttribute('data-value'));
+await page.click('button:has-text("Aportar")'); await page.waitForSelector('.sheet');
+await page.fill('.sheet .amount-input', '250');
+await page.waitForTimeout(200);
+await page.click('.sheet-foot .btn.primary'); await page.waitForSelector('.sheet', { state: 'detached' }); await page.waitForTimeout(700);
+const invAfter = Number(await page.locator('.hero').first().getAttribute('data-value'));
+check(`aportar R$ 250 aumenta o saldo do investimento (${invBefore} → ${invAfter})`, Math.round((invAfter - invBefore) * 100) === 25000);
+await go('/');
+const worthAfter = Number(await page.locator('.hero').first().getAttribute('data-value'));
+check(`patrimônio não cai ao aportar (${worthBefore} → ${worthAfter})`, Math.abs(worthAfter - worthBefore) < 0.01);
+check('investimento mostra aportes e rendimento', true);
+
+// cartão: pagar a fatura zera o que falta (o pagamento já vem com a fatura e o valor certos)
+await go('/contas');
+await page.click('.item:has-text("Nubank Cartão")'); await page.waitForTimeout(600);
+const falta = await page.locator('.kv:has-text("Falta pagar") b').first().innerText();
+await page.click('button:has-text("Pagar fatura")'); await page.waitForSelector('.sheet');
+check('pagar fatura já traz o valor da fatura preenchido', (await page.inputValue('.sheet .amount-input')).length > 0);
+await page.click('.sheet-foot .btn.primary'); await page.waitForSelector('.sheet', { state: 'detached' }); await page.waitForTimeout(700);
+const faltaDepois = await page.locator('.kv:has-text("Falta pagar") b').count();
+check(`depois de pagar, a fatura de ${falta} deixa de estar em aberto`, faltaDepois === 0 || (await page.locator('.kv:has-text("Falta pagar") b').first().innerText()) !== falta);
+
+// conta: ajustar saldo cria um lançamento de correção
+await go('/contas');
+await page.click('.item:has-text("Nubank Conta")'); await page.waitForTimeout(600);
+const saldo0 = Number(await page.locator('.hero').first().getAttribute('data-value'));
+await page.click('button:has-text("Ajustar saldo")'); await page.waitForSelector('.sheet');
+await page.fill('.sheet input[placeholder="0,00"]', String(saldo0 + 100).replace('.', ','));
+await page.waitForTimeout(200);
+check('ajustar saldo mostra o que será criado', (await page.locator('.sheet .callout').innerText()).includes('receita de'));
+await page.click('.sheet-foot .btn.primary'); await page.waitForSelector('.sheet', { state: 'detached' }); await page.waitForTimeout(700);
+check('ajustar saldo leva o saldo ao valor informado', Math.abs(Number(await page.locator('.hero').first().getAttribute('data-value')) - (saldo0 + 100)) < 0.01);
+
+// cadastro: cada tipo explica o que é; cartão não pede saldo
+await go('/contas');
+await page.click('button[aria-label="Adicionar"]'); await page.waitForSelector('.sheet');
+check('cadastro explica o tipo escolhido', (await page.locator('.kind-hint').innerText()).includes('Onde o dinheiro está'));
+await page.click('.sheet .seg button:has-text("Cartão")'); await page.waitForTimeout(250);
+check('cartão não pede saldo inicial', (await page.locator('.sheet label, .sheet .lbl').filter({ hasText: /Saldo/ }).count()) === 0);
+check('cartão pede fechamento e vencimento vazios', (await page.inputValue('.sheet input[placeholder="Ex.: 10"]')) === '' && (await page.inputValue('.sheet input[placeholder="Ex.: 17"]')) === '');
+await shot('25-cadastro-cartao');
+await page.fill('.sheet input[placeholder="Ex.: 10"]', '8'); await page.fill('.sheet input[placeholder="Ex.: 17"]', '15');
+check('mostra como as compras vão cair na fatura', (await page.locator('.sheet .callout').innerText()).includes('até o dia 8'));
 await page.keyboard.press('Escape'); await page.waitForTimeout(400);
 
 // ajuda do campo rápido

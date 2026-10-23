@@ -13,9 +13,26 @@ export function latestSnapshot(accountId: string, snaps: Snapshot[], asOf: strin
   return best;
 }
 
+/**
+ * Saldo de uma conta numa data.
+ * - Conta e cartão: saldo inicial + lançamentos efetivados (cartão negativo = dívida).
+ * - Investimento: último saldo informado + aportes/resgates (transferências) feitos DEPOIS dele.
+ *   Assim um aporte aparece na hora, e "Atualizar saldo" só precisa registrar o rendimento.
+ */
 export function accountBalance(acc: Account, txs: Transaction[], snaps: Snapshot[], asOf: string): number {
-  if (acc.kind === 'investment') return latestSnapshot(acc.id, snaps, asOf)?.balance ?? acc.initial_balance;
-  let bal = acc.initial_balance;
+  if (acc.kind === 'investment') {
+    const snap = latestSnapshot(acc.id, snaps, asOf);
+    let bal = snap?.balance ?? acc.initial_balance;
+    for (const t of txs) {
+      if (t.kind !== 'transfer' || !isEffective(t, asOf)) continue;
+      if (snap && t.date <= snap.date) continue; // já está contido no saldo informado
+      if (t.to_account_id === acc.id) bal += t.amount;
+      if (t.account_id === acc.id) bal -= t.amount;
+    }
+    return round2(bal);
+  }
+  // cartão de crédito não tem "saldo inicial": ele só poderia virar dinheiro (ou dívida) fantasma no patrimônio
+  let bal = acc.kind === 'credit' ? 0 : acc.initial_balance;
   for (const t of txs) {
     if (!isEffective(t, asOf)) continue;
     if (t.kind === 'transfer') {
@@ -70,17 +87,45 @@ export interface Invoice {
 
 const cardDays = (card: Account) => ({ closing: card.closing_day ?? 28, due: card.due_day ?? 10 });
 
+/**
+ * Pagamentos que não indicam a fatura são abatidos da mais antiga em aberto (como no banco).
+ * Retorna quanto de cada mês foi coberto por esses pagamentos "soltos".
+ */
+function looseAllocation(card: Account, txs: Transaction[]): Map<string, number> {
+  const { closing } = cardDays(card);
+  const need = new Map<string, number>();
+  for (const t of txs) {
+    if (t.account_id === card.id && t.kind !== 'transfer') {
+      const m = invoiceMonthOf(t.date, closing);
+      need.set(m, (need.get(m) ?? 0) + (t.kind === 'income' ? -t.amount : t.amount));
+    }
+  }
+  const explicit = new Map<string, number>();
+  let pool = 0;
+  for (const t of txs) {
+    if (t.kind !== 'transfer' || t.to_account_id !== card.id || t.status !== 'paid') continue;
+    if (t.invoice_ref) explicit.set(t.invoice_ref, (explicit.get(t.invoice_ref) ?? 0) + t.amount);
+    else pool += t.amount;
+  }
+  const out = new Map<string, number>();
+  for (const m of [...need.keys()].sort()) {
+    const open = Math.max(0, round2((need.get(m) ?? 0) - (explicit.get(m) ?? 0)));
+    const used = Math.min(pool, open);
+    if (used > 0) { out.set(m, round2(used)); pool = round2(pool - used); }
+  }
+  return out;
+}
+
 export function buildInvoice(card: Account, txs: Transaction[], month: string): Invoice {
   const { closing, due } = cardDays(card);
   const own = txs.filter(
     (t) => t.account_id === card.id && t.kind !== 'transfer' && invoiceMonthOf(t.date, closing) === month,
   );
   const total = round2(own.reduce((s, t) => s + (t.kind === 'income' ? -t.amount : t.amount), 0));
-  const paid = round2(
-    txs
-      .filter((t) => t.kind === 'transfer' && t.to_account_id === card.id && t.invoice_ref === month)
-      .reduce((s, t) => s + t.amount, 0),
-  );
+  const explicit = txs
+    .filter((t) => t.kind === 'transfer' && t.to_account_id === card.id && t.invoice_ref === month)
+    .reduce((s, t) => s + t.amount, 0);
+  const paid = round2(explicit + (looseAllocation(card, txs).get(month) ?? 0));
   return {
     month,
     total,
@@ -286,4 +331,80 @@ export function upcoming(accounts: Account[], txs: Transaction[], today: string,
     }
   }
   return out.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+
+// ---------- Investimentos ----------
+
+export interface InvestmentStats {
+  balance: number;
+  /** Aportes − resgates desde o começo. */
+  contributed: number;
+  /** Quanto rendeu: saldo − saldo inicial − aportes líquidos. */
+  yieldTotal: number;
+  /** Rendimento sobre o que foi colocado (saldo inicial + aportes), em %. null se não dá para calcular. */
+  yieldPct: number | null;
+  /** Rendimento do mês corrente (saldo agora − saldo do fim do mês passado − aportes do mês). */
+  monthYield: number;
+  /** Datas dos saldos informados (para saber se há histórico). */
+  snapshots: number;
+}
+
+export function investmentStats(acc: Account, txs: Transaction[], snaps: Snapshot[], today: string): InvestmentStats {
+  const balance = accountBalance(acc, txs, snaps, today);
+  const flow = (from: string, to: string) =>
+    round2(txs.reduce((sum, t) => {
+      if (t.kind !== 'transfer' || !isEffective(t, to) || t.date <= from) return sum;
+      return sum + (t.to_account_id === acc.id ? t.amount : t.account_id === acc.id ? -t.amount : 0);
+    }, 0));
+  const contributed = flow('0000-00-00', today);
+  const yieldTotal = round2(balance - acc.initial_balance - contributed);
+  const put = acc.initial_balance + txs.reduce((s, t) => s + (t.kind === 'transfer' && t.to_account_id === acc.id && isEffective(t, today) ? t.amount : 0), 0);
+  const prevEnd = endOfMonth(addMonthsToMonth(monthOf(today), -1));
+  const monthYield = round2(balance - accountBalance(acc, txs, snaps, prevEnd) - flow(prevEnd, today));
+  return {
+    balance, contributed, yieldTotal, monthYield,
+    yieldPct: put > 0 ? Math.round((yieldTotal / put) * 10000) / 100 : null,
+    snapshots: snaps.filter((x) => x.account_id === acc.id).length,
+  };
+}
+
+// ---------- Cartão: visão geral ----------
+
+export type InvoiceStatus = 'paid' | 'overdue' | 'closed' | 'open' | 'future';
+
+/** paga · vencida · fechada (a pagar) · aberta (recebendo compras agora) · futura (parcelas) */
+export function invoiceStatus(inv: Invoice, today: string): InvoiceStatus {
+  if (inv.total > 0 && inv.remaining === 0) return 'paid';
+  if (inv.remaining > 0 && inv.dueDate < today) return 'overdue';
+  if (inv.closingDate < today) return inv.total > 0 ? 'closed' : 'paid';
+  return inv.closingDate >= today && inv.month > monthOf(today) && inv.txs.every((t) => t.date > today) ? 'future' : 'open';
+}
+
+export interface CardOverview {
+  invoices: Invoice[];
+  /** Total ainda a pagar em todas as faturas (inclui parcelas futuras): é o que ocupa o limite. */
+  committed: number;
+  limitAvailable: number | null;
+  limitUsedPct: number | null;
+  /** Fatura que abre primeiro: a vencida mais antiga, senão a fechada a pagar, senão a atual. */
+  focus: Invoice;
+  overdue: Invoice[];
+  toPay: Invoice[];
+}
+
+export function cardOverview(card: Account, txs: Transaction[], today: string): CardOverview {
+  const invoices = invoiceMonths(card, txs, today).map((m) => buildInvoice(card, txs, m));
+  const status = (i: Invoice) => invoiceStatus(i, today);
+  const overdue = invoices.filter((i) => status(i) === 'overdue');
+  const toPay = invoices.filter((i) => status(i) === 'closed' && i.remaining > 0);
+  const current = invoices.find((i) => status(i) === 'open') ?? invoices[invoices.length - 1];
+  const committed = round2(invoices.reduce((s, i) => s + i.remaining, 0));
+  const limit = card.credit_limit;
+  return {
+    invoices, committed, overdue, toPay,
+    focus: overdue[0] ?? toPay[0] ?? current,
+    limitAvailable: limit ? round2(Math.max(0, limit - committed)) : null,
+    limitUsedPct: limit ? Math.min(100, Math.round((committed / limit) * 100)) : null,
+  };
 }

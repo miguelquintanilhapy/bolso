@@ -6,7 +6,9 @@ import { usePrivacy, Hero, Money } from '../ui/privacy';
 import { Empty, SectionTitle, TxRow, dayNet } from '../ui/common';
 import { useEditor } from '../ui/editors';
 import { ModalSheet } from '../ui/Sheet';
-import { activeAccounts, accountBalance, buildInstallments, buildInvoice, forecast, invoiceMonthOf, invoiceMonths, monthSummary, netWorth, upcoming } from '../lib/finance';
+import { INVOICE_STATUS, KIND_ICON, KIND_LABEL } from '../ui/accountUi';
+import { describeAccount } from '../lib/accountInfo';
+import { activeAccounts, buildInstallments, forecast, monthSummary, netWorth, upcoming } from '../lib/finance';
 import { parseQuickEntry } from '../lib/quickEntry';
 import { addMonthsToMonth, dayLabel, endOfMonth, monthName, monthOf, shortDate } from '../lib/dates';
 import { formatBRL } from '../lib/money';
@@ -194,7 +196,7 @@ export function Home() {
 
       {live.length > 0 && (
         <>
-          <SectionTitle title="Contas e cartões" action={<Link className="link" to="/contas">Ver todas <ChevronRight size={16} /></Link>} />
+          <SectionTitle title="Suas contas" action={<Link className="link" to="/contas">Ver todas <ChevronRight size={16} /></Link>} />
           <div className="carousel">
             {live.map((a) => <AccountCard key={a.id} account={a} only={live.length === 1} />)}
           </div>
@@ -253,22 +255,23 @@ export function Home() {
 function AccountCard({ account: a, only }: { account: Account; only: boolean }) {
   const s = useStore();
   const nav = useNavigate();
-  const bal = accountBalance(a, s.transactions, s.investment_snapshots, s.today);
-  let sub = a.kind === 'investment' ? 'Investimento' : 'Conta corrente';
-  let big = bal;
-  let meta = '';
-  if (a.kind === 'credit') {
-    const month = invoiceMonthOf(s.today, a.closing_day ?? 28);
-    const cur = invoiceMonths(a, s.transactions, s.today).find((m) => buildInvoice(a, s.transactions, m).remaining > 0) ?? month;
-    const inv = buildInvoice(a, s.transactions, cur);
-    sub = 'Cartão de crédito · fatura aberta';
-    big = inv.remaining;
-    meta = `Vence ${shortDate(inv.dueDate)}`;
-  }
+  const i = describeAccount(a, s.transactions, s.investment_snapshots, s.today);
+  const Icon = KIND_ICON[a.kind];
+  const [statusText, statusStyle] = i.status ? INVOICE_STATUS[i.status] : ['', ''];
   return (
     <button className={`acc-card ${only ? 'only' : ''}`} style={{ background: `linear-gradient(145deg, ${a.color === '#111111' ? '#2a2d33' : a.color} 0%, #0e0f12 120%)` }} onClick={() => nav(`/contas/${a.id}`)}>
-      <div><small>{a.name}</small><b className="big"><Money value={big} /></b><small>{sub}</small></div>
-      <div className="meta"><span>{meta}</span><span>{a.kind === 'credit' && a.credit_limit ? <>Limite <Money value={a.credit_limit} /></> : ''}</span></div>
+      <div>
+        <div className="top">
+          <small><Icon size={15} /> {a.name}</small>
+          {a.kind === 'credit' && i.status && i.status !== 'open' && <span className={`badge ${statusStyle}`}>{statusText}</span>}
+        </div>
+        <b className="big"><Money value={i.main} /></b>
+        <small>{i.caption || KIND_LABEL[a.kind]}</small>
+      </div>
+      <div>
+        {a.kind === 'credit' && i.limitUsedPct != null && <div className="limit-bar" aria-hidden><i style={{ width: `${i.limitUsedPct}%` }} /></div>}
+        <div className="meta" style={{ marginTop: 8 }}><span className={a.kind === 'investment' ? 'gain' : ''}>{i.sub}</span></div>
+      </div>
     </button>
   );
 }

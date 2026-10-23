@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Account, Category, Recurrence, Transaction } from './types';
 import {
-  accountBalance, budgetStatuses, buildInstallments, buildInvoice, forecast, invoiceDueDate,
-  invoiceMonthOf, monthSummary, netWorth, netWorthSeries, splitInstallments, upcoming,
+  accountBalance, budgetStatuses, buildInstallments, buildInvoice, cardOverview, forecast, invoiceDueDate,
+  invoiceMonthOf, invoiceStatus, investmentStats, monthSummary, netWorth, netWorthSeries, splitInstallments, upcoming,
 } from './finance';
 import { parseQuickEntry } from './quickEntry';
 import { planRecurrences } from './recurrence';
@@ -228,5 +228,83 @@ describe('recorrências e avisos', () => {
     const late = planNotifications({ ...args, today: '2026-10-21', existingKeys: new Set() }).map((n) => n.dedupe_key);
     expect(late).toContain('invoice-overdue:card:2026-10');
     expect(late).toContain('pending-overdue:luz');
+  });
+});
+
+
+describe('investimentos', () => {
+  const snap = (date: string, balance: number) => ({ id: date, account_id: 'inv', date, balance });
+  const aporte = (date: string, amount: number, from = 'bank', to = 'inv') => tx({ kind: 'transfer', amount, date, account_id: from, to_account_id: to });
+  it('aporte aparece na hora no saldo do investimento e o patrimônio não cai', () => {
+    const txs = [aporte('2026-10-20', 200)];
+    expect(accountBalance(inv, txs, [], TODAY)).toBe(5200);
+    expect(netWorth([bank, inv], txs, [], TODAY)).toBe(1000 - 200 + 5000 + 200);
+  });
+  it('aporte feito depois do último saldo informado soma; o anterior já está contido nele', () => {
+    const snaps = [snap('2026-09-01', 5400)];
+    expect(accountBalance(inv, [aporte('2026-08-20', 100), aporte('2026-09-10', 200)], snaps, TODAY)).toBe(5600);
+  });
+  it('resgate diminui o saldo', () => {
+    expect(accountBalance(inv, [aporte('2026-10-10', 300, 'inv', 'bank')], [], TODAY)).toBe(4700);
+  });
+  it('rendimento = saldo − saldo inicial − aportes líquidos', () => {
+    const txs = [aporte('2026-09-10', 200)];
+    const st = investmentStats(inv, txs, [snap('2026-10-01', 5350)], TODAY);
+    expect(st).toMatchObject({ balance: 5350, contributed: 200, yieldTotal: 150, snapshots: 1 });
+    expect(st.yieldPct).toBeCloseTo(2.88, 1); // 150 / 5200
+  });
+  it('rendimento do mês ignora o aporte do próprio mês', () => {
+    const txs = [aporte('2026-10-05', 500)];
+    const st = investmentStats(inv, txs, [snap('2026-10-20', 5560)], TODAY);
+    expect(st.monthYield).toBe(60); // 5560 − 5000 (fim de setembro) − 500
+  });
+});
+
+describe('cartão de crédito: dados e leitura', () => {
+  it('saldo inicial é ignorado (cartão não é dinheiro nem dívida inventada)', () => {
+    expect(netWorth([bank, { ...card, initial_balance: 500 }], [], [], TODAY)).toBe(1000);
+  });
+  it('pagamento sem fatura indicada abate da mais antiga em aberto', () => {
+    const txs = [
+      tx({ account_id: 'card', amount: 300, date: '2026-08-05' }), // fatura de agosto
+      tx({ account_id: 'card', amount: 200, date: '2026-09-05' }), // fatura de setembro
+      tx({ kind: 'transfer', amount: 350, account_id: 'bank', to_account_id: 'card', date: TODAY }),
+    ];
+    expect(buildInvoice(card, txs, '2026-08').remaining).toBe(0);
+    expect(buildInvoice(card, txs, '2026-09')).toMatchObject({ paid: 50, remaining: 150 });
+  });
+  it('pagamento com fatura indicada não é contado duas vezes', () => {
+    const txs = [
+      tx({ account_id: 'card', amount: 300, date: '2026-08-05' }),
+      tx({ account_id: 'card', amount: 200, date: '2026-09-05' }),
+      tx({ kind: 'transfer', amount: 200, account_id: 'bank', to_account_id: 'card', invoice_ref: '2026-09', date: TODAY }),
+    ];
+    expect(buildInvoice(card, txs, '2026-09').remaining).toBe(0);
+    expect(buildInvoice(card, txs, '2026-08').remaining).toBe(300);
+  });
+  it('estado de cada fatura e qual abre primeiro', () => {
+    const txs = [
+      tx({ account_id: 'card', amount: 100, date: '2026-08-05' }), // agosto: venceu 17/08
+      tx({ account_id: 'card', amount: 150, date: '2026-09-12' }), // outubro: fechou 10/10, vence 17/10 (venceu)
+      tx({ account_id: 'card', amount: 80, date: '2026-10-15' }), // novembro: aberta
+    ];
+    const ov = cardOverview(card, txs, TODAY);
+    const st = Object.fromEntries(ov.invoices.map((i) => [i.month, invoiceStatus(i, TODAY)]));
+    expect(st).toMatchObject({ '2026-08': 'overdue', '2026-10': 'overdue', '2026-11': 'open' });
+    expect(ov.focus.month).toBe('2026-08'); // a vencida mais antiga primeiro
+    expect(ov.committed).toBe(330);
+  });
+  it('limite disponível desconta tudo que ainda vai ser pago, inclusive parcelas futuras', () => {
+    const c = { ...card, credit_limit: 1000 };
+    const txs = [tx({ account_id: 'card', amount: 300, date: '2026-10-05' }), tx({ account_id: 'card', amount: 200, date: '2026-12-05' })];
+    expect(cardOverview(c, txs, TODAY)).toMatchObject({ committed: 500, limitAvailable: 500, limitUsedPct: 50 });
+  });
+  it('"cartão" no campo rápido escolhe o único cartão de crédito', () => {
+    const ctx = { categories: [] as Category[], accounts: [bank, card], today: TODAY };
+    const r = parseQuickEntry('300 tv 3x cartão', ctx);
+    expect(r.ok && r.draft.account_id).toBe('card');
+    const p = parseQuickEntry('50 mercado conta', { ...ctx, accounts: [{ ...bank, name: 'Itaú' }, card] });
+    expect(p.ok && p.draft.account_id).toBeNull();
+    expect(p.ok && p.draft.description).toBe('Mercado');
   });
 });

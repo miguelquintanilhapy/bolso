@@ -6,8 +6,8 @@ import { useConfirm } from './confirm';
 import { Segmented, Switch } from './common';
 import { CATEGORY_ICONS, CategoryIcon, COLORS } from './icons';
 import type { Account, AccountKind, Category, NewTransaction, Recurrence, Snapshot, Transaction, TxKind } from '../lib/types';
-import { buildInstallments, invoiceMonths, buildInvoice } from '../lib/finance';
-import { formatBRL, parseAmount } from '../lib/money';
+import { accountBalance, buildInstallments, buildInvoice, cardOverview, invoiceMonths } from '../lib/finance';
+import { formatBRL, parseAmount, round2 } from '../lib/money';
 import { addDays, monthLabel, monthOf } from '../lib/dates';
 import { norm } from '../lib/quickEntry';
 
@@ -21,7 +21,8 @@ type Open =
   | { type: 'account'; id?: string }
   | { type: 'category'; id?: string; kind?: 'expense' | 'income' }
   | { type: 'recurrence'; id?: string }
-  | { type: 'snapshot'; accountId: string };
+  | { type: 'snapshot'; accountId: string }
+  | { type: 'adjust'; accountId: string };
 
 interface EditorApi {
   newTx: (init?: TxInit) => void;
@@ -30,6 +31,7 @@ interface EditorApi {
   openCategory: (id?: string, kind?: 'expense' | 'income') => void;
   openRecurrence: (id?: string) => void;
   openSnapshot: (accountId: string) => void;
+  openAdjust: (accountId: string) => void;
 }
 const Ctx = createContext<EditorApi | null>(null);
 export const useEditor = () => {
@@ -59,6 +61,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     openCategory: (id, kind) => show({ type: 'category', id, kind }),
     openRecurrence: (id) => show({ type: 'recurrence', id }),
     openSnapshot: (accountId) => show({ type: 'snapshot', accountId }),
+    openAdjust: (accountId) => show({ type: 'adjust', accountId }),
   }), [show]);
   return (
     <Ctx.Provider value={api}>
@@ -69,6 +72,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         {open?.type === 'category' && <CategoryEditor id={open.id} kind={open.kind} onClose={close} />}
         {open?.type === 'recurrence' && <RecurrenceEditor id={open.id} onClose={close} />}
         {open?.type === 'snapshot' && <SnapshotEditor accountId={open.accountId} onClose={close} />}
+        {open?.type === 'adjust' && <AdjustEditor accountId={open.accountId} onClose={close} />}
       </SheetClosing.Provider>
     </Ctx.Provider>
   );
@@ -156,7 +160,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
   const submit = async () => {
     if (sending.current) return;
     if (!value) return fail('Informe um valor maior que zero.');
-    if (!accountId) return fail('Crie uma conta primeiro (aba Mais → Contas e cartões).');
+    if (!accountId) return fail('Crie uma conta primeiro (aba Mais → Contas, cartões e investimentos).');
     if (kind === 'transfer' && (!toId || toId === accountId)) return fail('Escolha uma conta de destino diferente da origem.');
     sending.current = true;
     setBusy(true);
@@ -206,6 +210,16 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
     const group = s.transactions.filter((t) => t.installment_group === existing.installment_group);
     onClose();
     await s.removeWithUndo('transactions', group, `${group.length} parcelas apagadas`);
+  };
+  // transferir para um cartão = pagar fatura: já escolhe a fatura que pede pagamento e sugere o valor
+  const pickDestination = (a: Account) => {
+    setToId(a.id);
+    if (a.kind !== 'credit') return setInvoiceRef(null);
+    const focus = cardOverview(a, s.transactions, s.today).focus;
+    if (focus.remaining > 0) {
+      setInvoiceRef(focus.month);
+      if (!amount.trim()) setAmount(String(focus.remaining).replace('.', ','));
+    } else setInvoiceRef(null);
   };
   const onEnter = (e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); void submit(); } };
 
@@ -267,7 +281,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
           <Field label="Para">
             <div className="chips">
               {live.filter((a) => a.id !== accountId).map((a) => (
-                <button key={a.id} type="button" className={`chip ${toId === a.id ? 'active' : ''}`} aria-pressed={toId === a.id} onClick={() => { setToId(a.id); setInvoiceRef(null); }}>
+                <button key={a.id} type="button" className={`chip ${toId === a.id ? 'active' : ''}`} aria-pressed={toId === a.id} onClick={() => pickDestination(a)}>
                   <span className="dot-color" style={{ background: a.color }} /> {a.name}
                 </button>
               ))}
@@ -276,7 +290,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
           {cardMonths.length > 0 && toAccount && (
             <Field label="Pagamento da fatura de">
               <select className="select" value={invoiceRef ?? ''} onChange={(e) => setInvoiceRef(e.target.value || null)}>
-                <option value="">Não é pagamento de fatura</option>
+                <option value="">Outro valor (abate da fatura mais antiga)</option>
                 {cardMonths.map((m) => <option key={m} value={m}>{monthLabel(m)} — resta {formatBRL(buildInvoice(toAccount, s.transactions, m).remaining)}</option>)}
               </select>
             </Field>
@@ -333,6 +347,18 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
 
 // ───────────────────────── Conta ─────────────────────────
 
+const KIND_INFO: Record<AccountKind, { noun: string; hint: string; color: string }> = {
+  checking: { noun: 'conta', color: '#4a8fe5', hint: 'Onde o dinheiro está agora: conta corrente, poupança ou carteira. Entradas somam e saídas subtraem do saldo.' },
+  credit: { noun: 'cartão', color: '#111111', hint: 'As compras vão para a fatura e você paga depois. O que aparece é o que você deve, não dinheiro seu.' },
+  investment: { noun: 'investimento', color: '#2f9e5b', hint: 'Dinheiro guardado que rende. Aportes e resgates você lança como transferência; o rendimento, atualizando o saldo.' },
+};
+
+const TITLES: Record<AccountKind, [string, string]> = {
+  checking: ['Nova conta', 'Editar conta'],
+  credit: ['Novo cartão', 'Editar cartão'],
+  investment: ['Novo investimento', 'Editar investimento'],
+};
+
 function AccountEditor({ id, onClose }: { id?: string; onClose: () => void }) {
   const s = useStore();
   const confirm = useConfirm();
@@ -340,22 +366,28 @@ function AccountEditor({ id, onClose }: { id?: string; onClose: () => void }) {
   const [name, setName] = useState(existing?.name ?? '');
   const [kind, setKind] = useState<AccountKind>(existing?.kind ?? 'checking');
   const [initial, setInitial] = useState(existing ? String(existing.initial_balance).replace('.', ',') : '');
-  const [closing, setClosing] = useState(String(existing?.closing_day ?? 10));
-  const [due, setDue] = useState(String(existing?.due_day ?? 17));
+  const [closing, setClosing] = useState(existing?.closing_day ? String(existing.closing_day) : '');
+  const [due, setDue] = useState(existing?.due_day ? String(existing.due_day) : '');
   const [limit, setLimit] = useState(existing?.credit_limit ? String(existing.credit_limit).replace('.', ',') : '');
-  const [color, setColor] = useState(existing?.color ?? COLORS[9]);
+  const [color, setColor] = useState(existing?.color ?? KIND_INFO.checking.color);
+  const [colorTouched, setColorTouched] = useState(!!existing);
   const [isDefault, setIsDefault] = useState(existing?.is_default ?? !s.accounts.some((a) => a.is_default));
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const sending = useRef(false);
+  const info = KIND_INFO[kind];
+  const duplicate = s.accounts.some((a) => a.id !== existing?.id && !a.archived && norm(a.name) === norm(name.trim()) && name.trim() !== '');
+  const closingDay = Number(closing), dueDay = Number(due);
+  const daysOk = closingDay >= 1 && closingDay <= 31 && dueDay >= 1 && dueDay <= 31;
+  const pickKind = (k: AccountKind) => { setKind(k); if (!colorTouched) setColor(KIND_INFO[k].color); };
 
   const submit = async () => {
     if (sending.current) return;
-    if (!name.trim()) return setError('Dê um nome para a conta.');
-    const init = initial.trim() ? (initial.trim().startsWith('-') ? -(parseAmount(initial.trim().slice(1)) ?? NaN) : parseAmount(initial)) : 0;
+    if (!name.trim()) return setError(`Dê um nome para o ${info.noun}.`);
+    const init = kind === 'credit' ? 0 : initial.trim() ? (initial.trim().startsWith('-') ? -(parseAmount(initial.trim().slice(1)) ?? NaN) : parseAmount(initial)) : 0;
     if (init === null || Number.isNaN(init)) return setError('Saldo inicial inválido.');
-    const c = Number(closing), d = Number(due);
-    if (kind === 'credit' && !(c >= 1 && c <= 31 && d >= 1 && d <= 31)) return setError('Informe dias de fechamento e vencimento entre 1 e 31.');
+    const c = closingDay, d = dueDay;
+    if (kind === 'credit' && !daysOk) return setError('Informe o dia do fechamento e o do vencimento (1 a 31). Estão no app do seu banco.');
     sending.current = true;
     setBusy(true);
     try {
@@ -391,7 +423,7 @@ function AccountEditor({ id, onClose }: { id?: string; onClose: () => void }) {
   };
 
   return (
-    <Sheet title={existing ? 'Editar conta' : 'Nova conta'} onClose={onClose}
+    <Sheet title={TITLES[kind][existing ? 1 : 0]} onClose={onClose}
       footer={
         <>
           {error && <p key={error} className="error-text shake" role="alert">{error}</p>}
@@ -399,25 +431,42 @@ function AccountEditor({ id, onClose }: { id?: string; onClose: () => void }) {
         </>
       }>
       {!existing && (
-        <Segmented<AccountKind> value={kind} onChange={setKind}
+        <Segmented<AccountKind> value={kind} onChange={pickKind}
           options={[{ id: 'checking', label: 'Conta' }, { id: 'credit', label: 'Cartão' }, { id: 'investment', label: 'Investimento' }]} />
       )}
-      <Field label="Nome"><input className="input" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void submit()} placeholder={kind === 'credit' ? 'Ex.: Nubank Cartão' : kind === 'investment' ? 'Ex.: Tesouro Selic' : 'Ex.: Nubank Conta'} /></Field>
-      <Field label={kind === 'investment' ? 'Saldo atual (R$)' : kind === 'credit' ? 'Saldo inicial do cartão (R$) — normalmente 0' : 'Saldo inicial (R$)'}>
-        <input className="input" inputMode="decimal" value={initial} onChange={(e) => setInitial(e.target.value)} placeholder="0,00" />
+      <p className="muted kind-hint" key={kind}>{info.hint}</p>
+      <Field label="Nome"><input className="input" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void submit()} placeholder={kind === 'credit' ? 'Ex.: Nubank Cartão' : kind === 'investment' ? 'Ex.: Tesouro Selic' : 'Ex.: Nubank Conta'} />
+        {duplicate && <small className="warn-text">Já existe uma conta com esse nome. Use nomes diferentes para o campo rápido saber qual escolher.</small>}
       </Field>
+      {kind !== 'credit' && (
+        <Field label={existing ? 'Saldo inicial (R$)' : 'Saldo atual (R$)'}>
+          <input className="input" inputMode="decimal" value={initial} onChange={(e) => setInitial(e.target.value)} placeholder="0,00" />
+          <small className="muted" style={{ paddingLeft: 4 }}>
+            {existing ? 'Valor de partida. Para corrigir o saldo de hoje, use "Ajustar saldo" na tela da conta.'
+              : kind === 'investment' ? 'Quanto você tem investido hoje.' : 'Quanto tem hoje. É a partir daqui que o Bolso soma e subtrai.'}
+          </small>
+        </Field>
+      )}
       {kind === 'credit' && (
         <>
           <div className="grid2">
-            <Field label="Dia do fechamento"><input className="input" inputMode="numeric" value={closing} onChange={(e) => setClosing(e.target.value)} /></Field>
-            <Field label="Dia do vencimento"><input className="input" inputMode="numeric" value={due} onChange={(e) => setDue(e.target.value)} /></Field>
+            <Field label="Dia do fechamento"><input className="input" inputMode="numeric" maxLength={2} value={closing} onChange={(e) => setClosing(e.target.value.replace(/\D/g, ''))} placeholder="Ex.: 10" /></Field>
+            <Field label="Dia do vencimento"><input className="input" inputMode="numeric" maxLength={2} value={due} onChange={(e) => setDue(e.target.value.replace(/\D/g, ''))} placeholder="Ex.: 17" /></Field>
           </div>
-          <Field label="Limite (R$, opcional)"><input className="input" inputMode="decimal" value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="0,00" /></Field>
+          {daysOk ? (
+            <p className="callout">Compras feitas até o dia <b>{closingDay}</b> entram na fatura do mês; depois disso, na do mês seguinte. A fatura vence no dia <b>{dueDay}</b>{dueDay <= closingDay ? ' do mês seguinte ao do fechamento' : ''}.</p>
+          ) : (
+            <p className="muted" style={{ fontSize: 13.5 }}>Fechamento e vencimento aparecem no app do seu banco, na tela da fatura.</p>
+          )}
+          <Field label="Limite do cartão (R$, opcional)">
+            <input className="input" inputMode="decimal" value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="0,00" />
+            <small className="muted" style={{ paddingLeft: 4 }}>Com o limite, o Bolso mostra quanto ainda está disponível.</small>
+          </Field>
         </>
       )}
       <Field label="Cor">
         <div className="swatches">
-          {COLORS.map((c) => <button key={c} type="button" aria-label={`Cor ${c}`} className={`swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />)}
+          {COLORS.map((c) => <button key={c} type="button" aria-label={`Cor ${c}`} className={`swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => { setColor(c); setColorTouched(true); }} />)}
         </div>
       </Field>
       {kind === 'checking' && (
@@ -601,14 +650,17 @@ function SnapshotEditor({ accountId, onClose }: { accountId: string; onClose: ()
   const [date, setDate] = useState(s.today);
   const [error, setError] = useState('');
   const sending = useRef(false);
+  // o que o Bolso espera ter na data (último saldo + aportes): a diferença para o que você informa é o rendimento
+  const expected = acc ? accountBalance(acc, s.transactions, s.investment_snapshots, date) : 0;
+  const typed = balance.trim() === '0' ? 0 : parseAmount(balance);
+  const gain = typed === null ? null : round2(typed - expected);
   const submit = async () => {
     if (sending.current) return;
-    const v = parseAmount(balance) ?? (balance.trim() === '0' ? 0 : null);
-    if (v === null) return setError('Informe o saldo atual.');
+    if (typed === null) return setError('Informe o saldo atual.');
     sending.current = true;
     try {
-      await s.insertMany<Snapshot>('investment_snapshots', [{ account_id: accountId, date, balance: v }]);
-      s.toast('Saldo atualizado');
+      await s.insertMany<Snapshot>('investment_snapshots', [{ account_id: accountId, date, balance: typed }]);
+      s.toast(gain ? `Saldo atualizado · ${gain > 0 ? 'rendeu' : 'variou'} ${gain > 0 ? '+' : ''}${formatBRL(gain)}` : 'Saldo atualizado');
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não consegui salvar.');
@@ -623,9 +675,66 @@ function SnapshotEditor({ accountId, onClose }: { accountId: string; onClose: ()
           <div className="foot-actions"><button className="btn primary" onClick={submit}>Salvar</button></div>
         </>
       }>
-      <p className="muted">Quanto tem hoje em <b>{acc?.name}</b>? O Bolso guarda o histórico para montar o gráfico do patrimônio.</p>
-      <Field label="Saldo (R$)"><input className="input" inputMode="decimal" value={balance} onChange={(e) => setBalance(e.target.value)} autoFocus placeholder="0,00" /></Field>
-      <Field label="Data"><input className="input" type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} /></Field>
+      <p className="muted">Olhe quanto tem hoje em <b>{acc?.name}</b> no app da corretora ou do banco e informe abaixo. O Bolso calcula o rendimento.</p>
+      <Field label="Saldo atual (R$)"><input className="input" inputMode="decimal" value={balance} onChange={(e) => setBalance(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void submit()} autoFocus placeholder="0,00" /></Field>
+      {gain !== null && (
+        <p className="callout">
+          O Bolso esperava <b>{formatBRL(expected)}</b> (último saldo + aportes). {gain === 0 ? 'Bateu exatamente.' : <>Diferença: <b className={gain > 0 ? 'green' : 'red'}>{gain > 0 ? '+' : ''}{formatBRL(gain)}</b> {gain > 0 ? 'de rendimento' : 'de variação negativa'}.</>}
+        </p>
+      )}
+      <Field label="Data do saldo"><input className="input" type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} /></Field>
+    </Sheet>
+  );
+}
+
+// ───────────────────────── Ajustar saldo ─────────────────────────
+
+function AdjustEditor({ accountId, onClose }: { accountId: string; onClose: () => void }) {
+  const s = useStore();
+  const acc = s.accounts.find((a) => a.id === accountId);
+  const current = acc ? accountBalance(acc, s.transactions, s.investment_snapshots, s.today) : 0;
+  const [real, setReal] = useState('');
+  const [error, setError] = useState('');
+  const sending = useRef(false);
+  const neg = real.trim().startsWith('-');
+  const parsed = real.trim() === '0' ? 0 : parseAmount(neg ? real.trim().slice(1) : real);
+  const target = parsed === null ? null : neg ? -parsed : parsed;
+  const diff = target === null ? null : round2(target - current);
+  const submit = async () => {
+    if (sending.current || !acc) return;
+    if (diff === null) return setError('Informe o saldo que aparece no seu banco.');
+    if (diff === 0) { s.toast('O saldo já está certo'); return onClose(); }
+    sending.current = true;
+    try {
+      await s.addTransactions([{
+        kind: diff > 0 ? 'income' : 'expense', amount: Math.abs(diff), date: s.today, description: 'Ajuste de saldo',
+        notes: `Saldo informado: ${formatBRL(target ?? 0)}`, tags: ['ajuste'], status: 'paid', account_id: acc.id, to_account_id: null, category_id: null,
+        installment_group: null, installment_number: null, installment_total: null, recurrence_id: null, ref_month: null, invoice_ref: null,
+      }]);
+      s.toast(`Saldo ajustado para ${formatBRL(target ?? 0)}`);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não consegui salvar.');
+      sending.current = false;
+    }
+  };
+  return (
+    <Sheet title="Ajustar saldo" onClose={onClose}
+      footer={
+        <>
+          {error && <p key={error} className="error-text shake" role="alert">{error}</p>}
+          <div className="foot-actions"><button className="btn primary" onClick={submit}>Ajustar</button></div>
+        </>
+      }>
+      <p className="muted">Compare com o saldo que aparece no app do banco. Se for diferente, o Bolso cria um lançamento de ajuste para os números baterem.</p>
+      <div className="mini-stats solo" style={{ marginTop: 0 }}>
+        <div className="mini"><span>Saldo no Bolso</span><b>{formatBRL(current)}</b></div>
+        <div className="mini"><span>{acc?.name}</span><b>hoje</b></div>
+      </div>
+      <Field label="Saldo real (R$)"><input className="input" inputMode="decimal" value={real} onChange={(e) => setReal(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void submit()} autoFocus placeholder="0,00" /></Field>
+      {diff !== null && (
+        <p className="callout">{diff === 0 ? 'Já está certo, nada a ajustar.' : <>Será criado um lançamento de <b className={diff > 0 ? 'green' : 'red'}>{diff > 0 ? 'receita' : 'despesa'} de {formatBRL(Math.abs(diff))}</b> chamado "Ajuste de saldo", com a tag #ajuste.</>}</p>
+      )}
     </Sheet>
   );
 }

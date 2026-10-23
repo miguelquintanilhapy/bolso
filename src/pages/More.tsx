@@ -57,7 +57,7 @@ export function More() {
 
       <span className="group-title">Dinheiro</span>
       <div className="group">
-        {row('/contas', <Landmark size={19} />, 'Contas e cartões')}
+        {row('/contas', <Landmark size={19} />, 'Contas, cartões e investimentos')}
         {row('/categorias', <Tags size={19} />, 'Categorias e limites')}
         {row('/recorrencias', <Repeat size={19} />, 'Recorrências e assinaturas')}
         {row('/notificacoes', <Bell size={19} />, 'Notificações', unread ? <span className="badge pending">{unread} nova{unread > 1 ? 's' : ''}</span> : undefined)}

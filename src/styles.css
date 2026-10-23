@@ -444,3 +444,27 @@ body { touch-action: pan-y pinch-zoom; }
 
 /* faixa sólida atrás do relógio/bateria do iPhone (só existe no app instalado; no navegador a área é 0) */
 .status-fill { position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top); background: var(--bg); z-index: 45; pointer-events: none; }
+
+.kind-hint { font-size: 13.5px; line-height: 1.45; animation: rise-in 0.3s var(--ease-out) backwards; }
+.callout { background: var(--card); border-radius: 16px; padding: 12px 14px; font-size: 14px; line-height: 1.5; color: var(--text-2); }
+.callout b { color: var(--text); }
+.warn-text { color: var(--amber); padding-left: 4px; font-size: 13px; }
+
+/* ---- contas, cartões e investimentos ---- */
+.acc-ico { display: grid; place-items: center; border-radius: 50%; color: #fff; flex: none; }
+.alert-strip { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: var(--red-bg); color: var(--red); border-radius: var(--radius-sm); padding: 12px 14px; font-weight: 600; font-size: 14px; }
+.alert-strip span { margin-left: auto; text-decoration: underline; flex: none; }
+.acc-card .badge { background: rgba(255,255,255,0.16); color: #fff; }
+.acc-card .badge.over { background: var(--red); color: #fff; }
+.acc-card .badge.pending { background: #f0b13a; color: #1c1300; }
+.acc-card .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.acc-card .top small { display: inline-flex; align-items: center; gap: 6px; opacity: 0.85; }
+.acc-card .limit-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.2); overflow: hidden; margin-top: 8px; }
+.acc-card .limit-bar i { display: block; height: 100%; background: #fff; border-radius: 3px; transform-origin: left; animation: meter-in 0.8s var(--ease-out) backwards; }
+.acc-card .gain { font-weight: 600; font-size: 13px; }
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { background: var(--card); box-shadow: var(--shadow); border-radius: var(--radius-sm); padding: 12px; }
+.stat span { display: block; color: var(--muted); font-size: 12px; }
+.stat b { display: block; font-size: 15px; letter-spacing: -0.01em; white-space: nowrap; }
+.stat small { display: block; font-size: 12px; }
+.item .trash { color: var(--muted); padding: 10px; margin: -10px -6px -10px 0; flex: none; }

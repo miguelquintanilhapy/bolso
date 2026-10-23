@@ -90,6 +90,16 @@ export function parseQuickEntry(
     const hit = full.length === 1 ? full : part.length === 1 ? part : [];
     if (hit.length === 1) { accountId = hit[0].id; accountToken = idx; }
   });
+  // apelidos: "cartão"/"crédito" = o cartão de crédito (se só houver um); "conta"/"débito" = conta padrão
+  if (!accountId) {
+    const alias = rest.findIndex((w) => ['cartao', 'credito'].includes(norm(w)));
+    const cards = live.filter((a) => a.kind === 'credit');
+    if (alias >= 0 && cards.length === 1) { accountId = cards[0].id; accountToken = alias; }
+    else {
+      const plain = rest.findIndex((w) => ['conta', 'debito'].includes(norm(w)));
+      if (plain >= 0) accountToken = plain; // usa a conta padrão, só tira a palavra da descrição
+    }
+  }
   const words = rest.filter((_, idx) => idx !== accountToken);
 
   // categoria por palavra-chave (ou pelo próprio nome)
