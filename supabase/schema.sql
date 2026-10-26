@@ -181,6 +181,71 @@ create policy "own rows" on public.investment_snapshots for all to authenticated
   );
 
 -- ============================================================
+-- Sincronização incremental: o app guarda uma cópia local e, ao abrir, baixa só o que mudou.
+--  · updated_at em toda linha (atualizado por gatilho, o app não consegue falsificar)
+--  · deleted_rows: registro das exclusões, para o app remover da cópia local
+-- ============================================================
+do $$
+declare t text;
+begin
+  foreach t in array array['accounts','categories','recurrences','transactions','notifications','investment_snapshots']
+  loop
+    execute format('alter table public.%I add column if not exists updated_at timestamptz not null default clock_timestamp()', t);
+    execute format('create index if not exists %I on public.%I (user_id, updated_at)', t || '_user_updated_idx', t);
+  end loop;
+end $$;
+
+create or replace function public.touch_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at := clock_timestamp();
+  return new;
+end;
+$$;
+
+create table if not exists public.deleted_rows (
+  tbl        text not null,
+  id         uuid not null,
+  user_id    uuid not null,
+  deleted_at timestamptz not null default clock_timestamp(),
+  primary key (tbl, id)
+);
+create index if not exists deleted_rows_user_idx on public.deleted_rows (user_id, deleted_at);
+alter table public.deleted_rows enable row level security;
+drop policy if exists "own rows read" on public.deleted_rows;
+create policy "own rows read" on public.deleted_rows for select to authenticated using (user_id = auth.uid());
+-- sem policy de escrita: só o gatilho (security definer) grava aqui
+
+create or replace function public.record_delete()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.deleted_rows (tbl, id, user_id) values (tg_table_name, old.id, old.user_id)
+  on conflict (tbl, id) do update set deleted_at = clock_timestamp();
+  -- o app confere tudo de novo a cada 7 dias; registros mais velhos que 30 dias não servem mais
+  delete from public.deleted_rows where user_id = old.user_id and deleted_at < now() - interval '30 days';
+  return old;
+end;
+$$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['accounts','categories','recurrences','transactions','notifications','investment_snapshots']
+  loop
+    execute format('drop trigger if exists bolso_touch on public.%I', t);
+    execute format('create trigger bolso_touch before insert or update on public.%I for each row execute function public.touch_updated_at()', t);
+    execute format('drop trigger if exists bolso_record_delete on public.%I', t);
+    execute format('create trigger bolso_record_delete after delete on public.%I for each row execute function public.record_delete()', t);
+  end loop;
+end $$;
+
+-- ============================================================
 -- ping(): usado pela rotina diária que evita a pausa do projeto gratuito
 -- ============================================================
 create or replace function public.ping()

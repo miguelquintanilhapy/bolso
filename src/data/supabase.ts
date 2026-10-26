@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Db, SessionUser, Table } from './api';
+import type { DeletedRow, Db, SessionUser, Table } from './api';
 
 const PAGE = 1000;
 
@@ -39,6 +39,26 @@ export function createSupabaseDb(url: string, anonKey: string): Db {
         const { data, error } = await sb.from(table).select('*').order('created_at', { ascending: true }).range(from, from + PAGE - 1);
         fail(error);
         rows.push(...((data ?? []) as T[]));
+        if (!data || data.length < PAGE) break;
+      }
+      return rows;
+    },
+    async changes<T>(table: Table, since: string) {
+      const rows: T[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await sb.from(table).select('*').gte('updated_at', since).order('updated_at', { ascending: true }).range(from, from + PAGE - 1);
+        fail(error);
+        rows.push(...((data ?? []) as T[]));
+        if (!data || data.length < PAGE) break;
+      }
+      return rows;
+    },
+    async deletedSince(since: string) {
+      const rows: DeletedRow[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await sb.from('deleted_rows').select('tbl,id,deleted_at').gte('deleted_at', since).order('deleted_at', { ascending: true }).range(from, from + PAGE - 1);
+        fail(error);
+        rows.push(...((data ?? []) as DeletedRow[]));
         if (!data || data.length < PAGE) break;
       }
       return rows;
