@@ -5,6 +5,7 @@ import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import './styles.css';
 import './lib/install';
+import { startUpdateChecks } from './lib/updates';
 import './ui/splash/bolso-splash.css';
 import { showBolsoSplash } from './ui/splash/bolso-splash.js';
 
@@ -17,6 +18,8 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 );
+
+startUpdateChecks();
 
 // Atualização automática: confere se há versão nova a cada 30 min e sempre que o app volta para a tela.
 // (registerType: 'autoUpdate' troca o service worker e recarrega a página sozinho.)

@@ -21,6 +21,8 @@ export default defineConfig(({ mode }) => {
   define: { __BUILD_ID__: JSON.stringify(build) },
   plugins: [
     react(),
+    // /version.json: a versão publicada, lida pelo app para saber se há atualização (nunca fica em cache)
+    { name: 'emit-version', generateBundle() { this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build }) }); } },
     { name: 'site-url', transformIndexHtml: (html: string) => html.replaceAll('__SITE_URL__', siteUrl).replace('__PRECONNECT__', preconnect) },
     VitePWA({
       registerType: 'autoUpdate',
@@ -44,7 +46,10 @@ export default defineConfig(({ mode }) => {
           { src: '/icon-monochrome-512.png', sizes: '512x512', type: 'image/png', purpose: 'monochrome' },
         ],
       },
-      workbox: { navigateFallback: '/index.html', globPatterns: ['**/*.{js,css,html,svg,png,woff2}'], globIgnores: ['og-image.png'] },
+      workbox: {
+        navigateFallback: '/index.html', globPatterns: ['**/*.{js,css,html,svg,png,woff2}'], globIgnores: ['og-image.png'],
+        runtimeCaching: [{ urlPattern: ({ url }: { url: URL }) => url.pathname === '/version.json', handler: 'NetworkOnly' }],
+      },
     }),
   ],
   test: { include: ['src/**/*.test.ts'] },
