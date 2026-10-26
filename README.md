@@ -61,5 +61,5 @@ Para o teste de interface no navegador (precisa de um Chromium): `npm run build 
 - `src/lib/` — lógica financeira pura e testada (saldos, faturas, parcelas, orçamento, previsão, campo rápido, recorrências, avisos).
 - `src/data/` — camada de dados: Supabase e modo demo local com a mesma interface.
 - `src/pages/`, `src/ui/` — telas e componentes.
-- `supabase/schema.sql` — tabelas, regras de segurança por linha e bloqueio de cadastro por lista de e-mails.
+- `supabase/schema.sql` — tabelas, regras de segurança por linha, bloqueio de cadastro por lista de e-mails e a base da sincronização incremental (`updated_at` + registro de exclusões). Rode de novo no SQL Editor sempre que este arquivo mudar.
 - `.github/workflows/keepalive.yml` — chamada diária que evita a pausa do projeto gratuito do Supabase.

@@ -28,9 +28,11 @@ const stats = await page.evaluate((n) => {
     const cat = inc ? income[Math.floor(rnd() * income.length)] : cats[Math.floor(rnd() * cats.length)];
     rows.push({ ...sample, id: crypto.randomUUID(), kind: inc ? 'income' : 'expense', amount: Math.round((5 + rnd() * (inc ? 4000 : 400)) * 100) / 100, date: iso,
       description: inc ? 'Salário' : names[Math.floor(rnd() * names.length)] + ' ' + (i % 97), category_id: cat?.id ?? null, account_id: acc.id, to_account_id: null,
-      status: d > today ? 'pending' : 'paid', tags: rnd() < 0.1 ? ['viagem'] : [], notes: '', installment_group: null, installment_number: null, installment_total: null, recurrence_id: null, ref_month: null, invoice_ref: null });
+      status: d > today ? 'pending' : 'paid', updated_at: `${iso}T12:00:00.000Z`, tags: rnd() < 0.1 ? ['viagem'] : [], notes: '', installment_group: null, installment_number: null, installment_total: null, recurrence_id: null, ref_month: null, invoice_ref: null });
   }
-  store.transactions = rows;
+  const longAgo = new Date(Date.now() - 40 * 864e5).toISOString();
+  for (const t of ['accounts', 'categories', 'recurrences', 'notifications', 'investment_snapshots']) for (const r of store[t]) r.updated_at = longAgo;
+  store.transactions = rows.map((r) => (r.date > today.toISOString().slice(0, 10) ? { ...r, updated_at: longAgo } : r));
   const json = JSON.stringify(store);
   localStorage.setItem('bolso:demo:v1', json);
   return { bytes: json.length };
@@ -80,5 +82,11 @@ console.log(`\n${N} lançamentos · CPU ${CPU === 1 ? 'normal' : `${CPU}x mais l
 console.log(`dados: ${(stats.bytes / 1024).toFixed(0)} KB em JSON, ${(gz / 1024).toFixed(0)} KB compactado (≈ o que trafega a cada abertura sem cópia local)`);
 for (const [k, v] of Object.entries(res)) console.log(`  ${k.padEnd(52)} ${typeof v === 'number' && !k.includes('linhas') && !k.includes('elementos') && !k.includes('resultados') ? v + ' ms' : v}`);
 console.log(`  memória JS usada: ${mem ?? 'n/d'} MB · tarefas longas (>50 ms): ${long.length}${long.length ? ' (maior ' + Math.max(...long) + ' ms)' : ''}`);
+// 2ª abertura: com a cópia local, só o que mudou deve vir do servidor
+await page.waitForTimeout(1500);
+const first = await page.evaluate(() => window.__dbStats);
+await page.reload(); await page.waitForSelector('.hero'); await page.waitForTimeout(800);
+const second = await page.evaluate(() => window.__dbStats);
+console.log(`  linhas baixadas na 1ª abertura (completa): ${first?.listRows ?? 'n/d'} · na 2ª abertura (incremental): lista ${second?.listRows ?? 'n/d'} + mudanças ${second?.changeRows ?? 'n/d'}`);
 if (errors.length) console.log('ERROS:', errors.join(' | '));
 await browser.close();

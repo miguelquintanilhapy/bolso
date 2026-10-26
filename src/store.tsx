@@ -10,6 +10,7 @@ import { todayISO } from './lib/dates';
 import { formatBRL } from './lib/money';
 import { seedDemo } from './data/demoSeed';
 import { clearCache, readCache, writeCache } from './data/cache';
+import { SYNC_MAX_AGE_MS, applyChanges, newestStamp, sinceFor } from './data/sync';
 
 /** O que a manutenção em segundo plano criou ou alterou. */
 interface Delta { transactions: Transaction[]; recurrences: Recurrence[]; notifications: AppNotification[] }
@@ -115,7 +116,31 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
     return { accounts, categories, transactions, recurrences, notifications, investment_snapshots } as Data;
   }, []);
 
-  const reload = useCallback(async () => setData(await load()), [load]);
+  // Sincronização incremental: com a cópia local em mãos, baixa só o que mudou desde a última vez (a cada 7 dias, confere tudo de novo).
+  // Se o banco ainda não tem as colunas novas, ou algo falha, cai na carga completa: o resultado é o mesmo, só mais pesado.
+  const syncRef = useRef<{ at: string | null; fullAt: number }>({ at: null, fullAt: 0 });
+  const fetchData = useCallback(async (base: Data | null): Promise<Data> => {
+    const meta = syncRef.current;
+    if (base && meta.at && Date.now() - meta.fullAt < SYNC_MAX_AGE_MS) {
+      try {
+        const since = sinceFor(meta.at);
+        const tables: Table[] = ['accounts', 'categories', 'transactions', 'recurrences', 'notifications', 'investment_snapshots'];
+        const [lists, deleted] = await Promise.all([Promise.all(tables.map((t) => db.changes<Row & { updated_at?: string }>(t, since))), db.deletedSince(since)]);
+        const changes = Object.fromEntries(tables.map((t, i) => [t, lists[i]]));
+        const out = applyChanges(base as never, changes as never, deleted, meta.at);
+        syncRef.current = { at: out.syncedAt, fullAt: meta.fullAt };
+        return out.data as unknown as Data;
+      } catch { /* sem o schema novo ou sem rede: carga completa abaixo */ }
+    }
+    const full = await load();
+    syncRef.current = { at: newestStamp(full as never), fullAt: Date.now() };
+    return full;
+  }, [load]);
+
+  /** Recarrega tudo do zero (puxar para atualizar, desfazer exclusão de categoria…). */
+  const reload = useCallback(async () => setData(await fetchData(null)), [fetchData]);
+  /** Atualização leve: só o que mudou (ao voltar para o app). */
+  const refresh = useCallback(async () => setData(await fetchData(dataRef.current)), [fetchData]);
 
 
   /** Gera as recorrências devidas e devolve só o que foi criado/alterado. */
@@ -162,6 +187,8 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
     (async () => {
       let shown = false;
       const cached = await readCache<Data>(cacheKey);
+      const meta = await readCache<{ at: string | null; fullAt: number }>(`${cacheKey}:sync`);
+      if (cached && meta) syncRef.current = meta;
       if (cached) {
         setData({ ...emptyData, ...cached });
         setReady(true);
@@ -171,17 +198,18 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
       }
       try {
         const startedAt = mutations.current;
-        let d = await load();
+        const base = cached ? { ...emptyData, ...cached } : null;
+        let d = await fetchData(base);
         if (db.mode === 'demo' && !d.accounts.length && !d.categories.length && new URLSearchParams(location.search).has('demo')) {
           await seedDemo(db, today);
-          d = await load();
+          d = await fetchData(null);
         }
         // as categorias padrão precisam existir antes do primeiro lançamento
         if (!d.categories.length) {
           d.categories = await db.insert<Category>('categories', DEFAULT_CATEGORIES.map((c) => ({ ...c, budget_limit: null, archived: false })));
         }
         // a pessoa mexeu enquanto buscávamos: busca de novo para não mostrar dado velho
-        if (mutations.current !== startedAt) d = await load();
+        if (mutations.current !== startedAt) d = await fetchData(d);
         setData(d);
         setReady(true);
         if (!shown) setLoadMs(Math.round(performance.now() - t0));
@@ -202,12 +230,12 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
         setRefreshing(false);
       }
     })();
-  }, [load, today, processRecurrences, applyDelta, merge, toast, cacheKey]);
+  }, [fetchData, today, processRecurrences, applyDelta, merge, toast, cacheKey]);
 
   // mantém a cópia local em dia depois de cada mudança
   useEffect(() => {
     if (!ready) return;
-    const t = setTimeout(() => void writeCache(cacheKey, data), 500);
+    const t = setTimeout(() => { void writeCache(cacheKey, data); void writeCache(`${cacheKey}:sync`, syncRef.current); }, 500);
     return () => clearTimeout(t);
   }, [data, ready, cacheKey]);
 
@@ -302,12 +330,12 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
     let hiddenAt = 0;
     const onVisible = () => {
       if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
-      if (hiddenAt && Date.now() - hiddenAt > 60_000) void reload().catch(() => {});
+      if (hiddenAt && Date.now() - hiddenAt > 60_000) void refresh().catch(() => {});
       hiddenAt = 0;
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [reload]);
+  }, [refresh]);
 
   const value: Ctx = {
     ...data, user, today, mode: db.mode, reload, syncRecurrences, loadMs, refreshing, addTransactions, save, insertMany, remove, removeWithUndo, removeCategoryWithUndo, markRead, markPaid, flash,

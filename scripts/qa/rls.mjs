@@ -66,5 +66,13 @@ await cross('B não usa categoria de A numa recorrência', `insert into recurren
 // ---- avisos: mesma chave em usuários diferentes é permitido
 check('mesma chave de aviso em usuários diferentes não conflita', await as('authenticated', B, () => db.query(`insert into notifications (kind, title, dedupe_key) values ('x', 'aviso de B', 'k') returning id`)).then(() => true, () => false));
 check('ping() funciona para anônimo (anti-pausa)', (await as('anon', null, () => rows('select public.ping() as t'))).length === 1);
+// ---- sincronização: registro de exclusões
+await as('authenticated', A, () => db.exec(`delete from notifications`));
+check('A enxerga as próprias exclusões', (await as('authenticated', A, () => rows('select * from deleted_rows'))).some((r) => r.tbl === 'notifications'));
+check('B não enxerga exclusões de A', (await as('authenticated', B, () => rows('select * from deleted_rows'))).length === 0);
+check('anônimo não enxerga exclusões', (await as('anon', null, () => rows('select * from deleted_rows'))).length === 0);
+check('ninguém grava direto em deleted_rows', (await as('authenticated', A, () => denied(`insert into deleted_rows (tbl, id, user_id) values ('x', gen_random_uuid(), '${A}')`))) !== false);
+check('ninguém apaga registros de deleted_rows', (await as('authenticated', A, () => denied(`delete from deleted_rows`))) !== false);
+
 console.log(failed ? `\n${failed} falha(s)` : '\ntodas as regras de acesso OK');
 process.exit(failed ? 1 : 0);
