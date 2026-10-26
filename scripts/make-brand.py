@@ -2,8 +2,8 @@
 
   python3 scripts/make-brand.py
 
-- ícone do app / iPhone / PWA: carteira preta sobre fundo branco (o iOS pinta fundo transparente de preto)
-- favicon: mesma ideia, cantos arredondados, para ficar visível em abas claras e escuras
+- ícone do app / iPhone / PWA: carteira BRANCA sobre fundo preto, o mesmo em qualquer modo (claro/escuro)
+- favicon da aba: claro (carteira preta no branco) e escuro (carteira branca no preto), trocados pelo navegador conforme o modo
 - logo: preta com fundo transparente e recortada (logo.png); versão branca para o tema escuro (logo-white.png)
 - variantes escuras (ícone do iPhone, favicons e ícone monocromático do Android): carteira branca sobre fundo preto
 """
@@ -29,8 +29,7 @@ def app_icon(size, fill=0.56, radius=0.0):
 
 
 # 0.56 mantém a carteira dentro da zona segura de 80% dos ícones "maskable"
-for name, size in (("icon-192.png", 192), ("icon-512.png", 512), ("apple-touch-icon.png", 180)):
-    app_icon(size).convert("RGB").save(f"{OUT}/{name}", optimize=True)
+# (os ícones do app/iPhone/PWA são gerados mais abaixo: carteira branca sobre preto, iguais em qualquer modo)
 
 fav = {s: app_icon(s, fill=0.74, radius=0.22) for s in (16, 32, 48, 64)}
 fav[32].save(f"{OUT}/favicon-32.png", optimize=True)
@@ -111,7 +110,11 @@ def dark_icon(size, fill=0.56, radius=0.0, bg=(0, 0, 0, 255)):
     return canvas
 
 
-dark_icon(180).convert("RGB").save(f"{OUT}/apple-touch-icon-dark.png", optimize=True)
+# ícone do app (iPhone, Android, PWA): UM só, igual em modo claro e escuro, para não depender do iOS escurecer sozinho
+for name, size in (("icon-192.png", 192), ("icon-512.png", 512), ("apple-touch-icon.png", 180)):
+    dark_icon(size).convert("RGB").save(f"{OUT}/{name}", optimize=True)
+# "maskable" (Android recorta em círculo/quadrado arredondado): a carteira fica dentro dos 80% centrais
+dark_icon(512, fill=0.56 * 0.74).convert("RGB").save(f"{OUT}/icon-maskable-512.png", optimize=True)
 dark_icon(32, fill=0.74, radius=0.22).save(f"{OUT}/favicon-dark-32.png", optimize=True)
 dark_icon(64, fill=0.74, radius=0.22).save(f"{OUT}/favicon-dark-64.png", optimize=True)
 dark_icon(256, fill=0.74, radius=0.22).save(f"{OUT}/favicon-dark.ico", sizes=[(16, 16), (32, 32), (48, 48)])
