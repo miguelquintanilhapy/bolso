@@ -5,6 +5,7 @@ import { DEFAULT_CATEGORIES } from './data/defaults';
 import { BrandLogo } from './ui/BrandLogo';
 import type { Account, AppNotification, Category, NewTransaction, Recurrence, Snapshot, Transaction } from './lib/types';
 import { planRecurrences } from './lib/recurrence';
+import { categoryAllowed } from './lib/categoryRules';
 import { planNotifications } from './lib/alerts';
 import { todayISO } from './lib/dates';
 import { formatBRL } from './lib/money';
@@ -123,7 +124,10 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
     const none: Delta = { transactions: [], recurrences: [], notifications: [] };
     const plan = planRecurrences(d.recurrences, d.accounts, today);
     if (!plan.length) return none;
-    const created = await db.insert<Transaction>('transactions', plan.map((p) => p.tx), { ignoreDuplicates: 'recurrence_id,ref_month' });
+    // se a conta passou a limitar categorias e a recorrência usa outra, o lançamento é criado sem categoria (em vez de falhar o lote todo)
+    const accById = new Map(d.accounts.map((x) => [x.id, x]));
+    const rows = plan.map((p) => (categoryAllowed(accById.get(p.tx.account_id), p.tx.category_id) ? p.tx : { ...p.tx, category_id: null }));
+    const created = await db.insert<Transaction>('transactions', rows, { ignoreDuplicates: 'recurrence_id,ref_month' });
     const lastByRec = new Map<string, string>();
     for (const p of plan) if (p.month > (lastByRec.get(p.recurrenceId) ?? '')) lastByRec.set(p.recurrenceId, p.month);
     const newNotifs = created

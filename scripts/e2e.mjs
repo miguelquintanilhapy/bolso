@@ -581,6 +581,63 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   await bctx.close();
 }
 
+// ── ordem do extrato (mais recente em cima) e categorias aceitas por conta
+{
+  const rctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'pt-BR', reducedMotion: 'reduce' });
+  const rp = await rctx.newPage();
+  await rp.goto(`${url}/?demo`); await rp.waitForSelector('.hero');
+  const go = (path) => rp.evaluate((x) => { history.pushState({}, '', x); dispatchEvent(new PopStateEvent('popstate')); }, path);
+  const q = 'input[aria-label="Lançamento rápido"]';
+  // ordem: lançar dois no mesmo dia; o último lançado fica em cima
+  await rp.fill(q, '11 mercado'); await rp.press(q, 'Enter'); await rp.waitForSelector('.toast'); await rp.waitForTimeout(80);
+  await rp.fill(q, '22 uber'); await rp.press(q, 'Enter'); await rp.waitForSelector('.toast:has-text("Transporte")'); await rp.waitForTimeout(300);
+  await go('/lancamentos'); await rp.waitForSelector('.swipe');
+  const hoje = await rp.locator('.list > .list:has(.day-label:has-text("Hoje")) > .swipe').allInnerTexts();
+  check('extrato: no mesmo dia, o último lançado fica em cima', /uber/i.test(hoje[0] ?? '') && /mercado/i.test(hoje[1] ?? '') && hoje.findIndex((t) => /Padaria/.test(t)) > 1, hoje.map((t) => t.split('\n')[0]).join(' | '));
+  const homeRows = await (async () => { await go('/'); await rp.waitForSelector('.hero'); return rp.locator('.list > .list:has(.day-label:has-text("Hoje")) > .swipe').allInnerTexts(); })();
+  check('início: a lista de últimos lançamentos também mostra o mais recente em cima', /uber/i.test(homeRows[0] ?? ''), homeRows.map((t) => t.split('\n')[0]).join(' | '));
+
+  // categorias aceitas por conta
+  await go('/contas'); await rp.waitForSelector('button[aria-label="Adicionar"]');
+  await rp.click('button[aria-label="Adicionar"]'); await rp.waitForSelector('.sheet');
+  await rp.fill('.sheet input[placeholder^="Ex.: Nubank"]', 'Swile');
+  await rp.click('.sheet button[aria-label="Limitar categorias"]');
+  for (const c of ['Lazer', 'Transporte', 'Alimentação']) await rp.click(`.sheet .chip:has-text("${c}")`);
+  await rp.click('.sheet .foot-actions .btn.primary'); await rp.waitForSelector('.sheet', { state: 'detached' });
+  const listText = await rp.locator('.screen').innerText();
+  check('categorias por conta: a lista de contas mostra o que a conta aceita', /Só aceita:/.test(listText) && /Lazer/.test(listText.split('Só aceita:')[1]) && !/Moradia/.test(listText.split('Só aceita:')[1].split('\n')[0]), listText.split('Só aceita:')[1]?.split('\n')[0]);
+  await go('/'); await rp.waitForSelector('.hero');
+  await rp.click('.action:has-text("Despesa")'); await rp.waitForSelector('.sheet');
+  await rp.click('.sheet .chip:has-text("Swile")');
+  const catField = '.sheet .field:has(.lbl:has-text("Categoria"))';
+  check('categorias por conta: o formulário mostra só as 3 categorias aceitas', (await rp.locator(`${catField} .chip`).count()) === 3 && (await rp.locator(`${catField} .chip:has-text("Moradia")`).count()) === 0);
+  check('categorias por conta: o formulário explica o limite', /só aceita/i.test(await rp.locator(`${catField} .field-hint`).innerText()));
+  await money(rp, '.amount-input', '10,00');
+  await rp.click('.sheet .foot-actions .btn.primary');
+  check('categorias por conta: sem escolher categoria pede para escolher', /Escolha uma categoria/.test(await rp.locator(`${catField} .field-error`).innerText().catch(() => '')));
+  await rp.click(`${catField} .chip:has-text("Lazer")`);
+  await rp.click('.sheet .chip:has-text("Nubank Conta")');
+  check('categorias por conta: trocar para uma conta sem limite libera todas as categorias', (await rp.locator(`${catField} .chip`).count()) > 3 && (await rp.locator(`${catField} .chip.active:has-text("Lazer")`).count()) === 1);
+  await rp.click('.sheet .chip:has-text("Swile")');
+  await rp.click('.sheet .foot-actions .btn.primary');
+  await rp.waitForSelector('.sheet', { state: 'detached' });
+  check('categorias por conta: salvar com categoria permitida funciona', (await rp.locator('.toast:has-text("salvo")').count()) === 1);
+  // campo rápido com categoria que a conta não aceita: abre o formulário para escolher
+  await rp.fill(q, '100 aluguel swile'); await rp.press(q, 'Enter');
+  await rp.waitForSelector('.sheet');
+  check('categorias por conta: campo rápido com categoria proibida abre o formulário e avisa', (await rp.locator('.toast:has-text("Swile só aceita")').count()) === 1 && (await rp.locator(`${catField} .chip`).count()) === 3);
+  await esc(rp);
+  // desligar o limite
+  await go('/contas'); await rp.waitForSelector('.item:has-text("Swile")');
+  await rp.click('.item:has-text("Swile")'); await rp.waitForSelector('button[aria-label="Editar"]');
+  await rp.click('button[aria-label="Editar"]'); await rp.waitForSelector('.sheet');
+  await rp.click('.sheet button[aria-label="Limitar categorias"]');
+  await rp.click('.sheet .foot-actions .btn.primary'); await rp.waitForSelector('.sheet', { state: 'detached' });
+  await go('/contas'); await rp.waitForSelector('.item:has-text("Swile")');
+  check('categorias por conta: desligar o limite volta a aceitar todas', !/Só aceita:/.test(await rp.locator('.screen').innerText()));
+  await rctx.close();
+}
+
 // ── computador e tablet
 {
   const desk = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();

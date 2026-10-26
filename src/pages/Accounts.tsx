@@ -3,12 +3,13 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ArrowDownToLine, ArrowLeft, ArrowUpFromLine, Pencil, Plus, RefreshCw, Scale, Trash2, TriangleAlert } from 'lucide-react';
 import { useStore } from '../store';
 import { Empty, MonthNav, SectionTitle, TxRow } from '../ui/common';
+import { allowedCategories, isRestricted, joinNames } from '../lib/categoryRules';
 import { useEditor } from '../ui/editors';
 import { AreaChart } from '../ui/Charts';
 import { Hero, Money } from '../ui/privacy';
 import { AccountIcon, INVOICE_STATUS, KIND_LABEL } from '../ui/accountUi';
 import { describeAccount } from '../lib/accountInfo';
-import { accountBalance, activeAccounts, cardOverview, invoiceStatus, investmentStats, netWorth } from '../lib/finance';
+import { newestFirst, accountBalance, activeAccounts, cardOverview, invoiceStatus, investmentStats, netWorth } from '../lib/finance';
 import { addMonthsToMonth, dayLabel, diffDays, monthLabel, monthOf, monthShort, shortDate } from '../lib/dates';
 import { formatBRL, round2 } from '../lib/money';
 import type { Account } from '../lib/types';
@@ -58,6 +59,7 @@ export function Accounts() {
                   <b>{a.name}</b>
                   <small className={`wrap ${i.tone ?? ''}`}>{i.sub || KIND_LABEL[a.kind]}</small>
                   {i.extra && <small>{i.extra}</small>}
+                  {isRestricted(a) && <small className="restrict">Só aceita: {joinNames(allowedCategories(a, s.categories).map((c) => c.name))}</small>}
                 </span>
                 <span className="side">
                   <b className={a.kind === 'checking' && i.main < 0 ? 'red' : ''}><Money value={i.main} /></b>
@@ -137,7 +139,7 @@ export function AccountDetail() {
   if (!acc) return <Navigate to="/contas" replace />;
   const bal = accountBalance(acc, s.transactions, s.investment_snapshots, s.today);
   const checking = s.accounts.find((a) => a.is_default && a.kind === 'checking' && !a.archived) ?? s.accounts.find((a) => a.kind === 'checking' && !a.archived);
-  const own = s.transactions.filter((t) => t.account_id === acc.id || t.to_account_id === acc.id).sort((a, b) => b.date.localeCompare(a.date));
+  const own = s.transactions.filter((t) => t.account_id === acc.id || t.to_account_id === acc.id).sort(newestFirst);
   const rowProps = { accounts: s.accounts, categories: s.categories, showDate: true, hideAccount: true } as const;
 
   const header = (

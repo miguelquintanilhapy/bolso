@@ -884,3 +884,4 @@ kbd { font-size: 11px; }
 .pay-btn.out { background: var(--card-2); color: var(--text); }
 .pay-btn:active { transform: scale(0.94); }
 .item .side { display: flex; flex-direction: column; align-items: flex-end; }
+.item .main small.restrict { color: var(--text-2); white-space: normal; }

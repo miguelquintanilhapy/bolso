@@ -9,10 +9,11 @@ import { useConfirm } from '../ui/confirm';
 import { openSearch } from '../ui/SearchPalette';
 import { INSTALL_STEPS, useInstall } from '../lib/install';
 import { collapseOverdue, findDuplicate, pendingWhen } from '../lib/ux';
+import { categoryAllowed, restrictionText } from '../lib/categoryRules';
 import { ModalSheet } from '../ui/Sheet';
 import { INVOICE_STATUS, KIND_ICON, KIND_LABEL } from '../ui/accountUi';
 import { describeAccount } from '../lib/accountInfo';
-import { activeAccounts, buildInstallments, forecast, monthSummary, netWorth, upcoming } from '../lib/finance';
+import { activeAccounts, newestFirst, buildInstallments, forecast, monthSummary, netWorth, upcoming } from '../lib/finance';
 import { parseQuickEntry } from '../lib/quickEntry';
 import { addMonthsToMonth, dayLabel, endOfMonth, monthName, monthOf, shortDate } from '../lib/dates';
 import { formatBRL } from '../lib/money';
@@ -68,7 +69,7 @@ export function Home() {
   const soon = useMemo(() => collapseOverdue(upcoming(s.accounts, s.transactions, s.today, 7), s.today), [s.accounts, s.transactions, s.today]);
   const unread = s.notifications.filter((n) => !n.read).length;
   const recent = useMemo(
-    () => [...s.transactions].filter((t) => t.date <= s.today).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8),
+    () => [...s.transactions].filter((t) => t.date <= s.today).sort(newestFirst).slice(0, 8),
     [s.transactions, s.today],
   );
   const groups = recent.reduce<Record<string, typeof recent>>((m, t) => ((m[t.date] ||= []).push(t), m), {});
@@ -92,10 +93,11 @@ export function Home() {
     const d = r.draft;
     const acc = s.accounts.find((a) => a.id === d.account_id) ?? s.accounts.find((a) => a.is_default && !a.archived) ?? live.find((a) => a.kind === 'checking') ?? live[0];
     if (!acc) { s.toast('Você ainda não tem conta.', { label: 'Criar conta', run: () => openAccount() }); return; }
-    // categoria desconhecida: abre o formulário já preenchido (e aprende a palavra ao salvar)
-    if (!d.category_id) {
+    // categoria desconhecida, ou que a conta não aceita: abre o formulário já preenchido para escolher uma permitida
+    if (d.category_id && !categoryAllowed(acc, d.category_id)) s.toast(restrictionText(acc, s.categories));
+    if (!d.category_id || !categoryAllowed(acc, d.category_id)) {
       setText('');
-      return newTx({ kind: d.kind, amount: d.amount, description: d.description, account_id: acc.id, date: d.date, installments: d.installments, tags: d.tags, keyword: d.keyword });
+      return newTx({ kind: d.kind, amount: d.amount, description: d.description, account_id: acc.id, date: d.date, installments: d.installments, tags: d.tags, keyword: categoryAllowed(acc, d.category_id) ? d.keyword : null });
     }
     const isCard = acc.kind === 'credit';
     const base: NewTransaction = {

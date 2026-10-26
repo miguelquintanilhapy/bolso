@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Account, Category, Recurrence, Snapshot, Transaction } from './types';
 import {
-  accountBalance, budgetStatuses, buildInstallments, buildInvoice, invoiceMonths, cardOverview, forecast, invoiceDueDate, invoiceMonthOf,
+  accountBalance, budgetStatuses, newestFirst, buildInstallments, buildInvoice, invoiceMonths, cardOverview, forecast, invoiceDueDate, invoiceMonthOf,
   investmentStats, monthSummary, netWorth, netWorthSeries, splitInstallments,
 } from './finance';
 import { addDays, addMonthsToDate, dayLabel, dateInMonth, diffDays, monthRange, toISO } from './dates';
@@ -388,5 +388,16 @@ describe('faturas: índice por cartão dá o mesmo resultado da conta direta', (
     expect(buildInvoice(card, [t1], '2026-10').total).toBe(100);
     expect(buildInvoice(card, [t1, { ...t1, id: 'b', amount: 50 }], '2026-10').total).toBe(150);
     expect(buildInvoice(card, [{ ...t1, amount: 30 }], '2026-10').total).toBe(30);
+  });
+});
+
+describe('ordem das listas: mais recente em cima', () => {
+  const t = (id: string, date: string, created_at?: string) => ({ id, date, created_at }) as Transaction;
+  it('dias mais novos primeiro; dentro do dia, o último lançado em cima', () => {
+    const list = [t('a', '2026-10-25', '2026-10-25T08:00:00Z'), t('b', '2026-10-26', '2026-10-26T09:00:00Z'), t('c', '2026-10-26', '2026-10-26T15:30:00Z'), t('d', '2026-10-26', '2026-10-26T11:00:00Z')];
+    expect([...list].sort(newestFirst).map((x) => x.id)).toEqual(['c', 'd', 'b', 'a']);
+  });
+  it('sem horário de criação não quebra e mantém a ordem por data', () => {
+    expect([t('x', '2026-10-01'), t('y', '2026-10-02')].sort(newestFirst).map((x) => x.id)).toEqual(['y', 'x']);
   });
 });

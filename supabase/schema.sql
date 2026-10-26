@@ -181,6 +181,33 @@ create policy "own rows" on public.investment_snapshots for all to authenticated
   );
 
 -- ============================================================
+-- Categorias aceitas por conta/cartão (ex.: um vale-refeição só aceita Alimentação, Lazer e Transporte)
+-- ============================================================
+alter table public.accounts add column if not exists allowed_category_ids uuid[];
+
+create or replace function public.enforce_account_categories()
+returns trigger
+language plpgsql
+as $$
+declare allowed uuid[];
+begin
+  if new.category_id is null then return new; end if;
+  -- só confere quando a categoria ou a conta mudou (marcar como pago um lançamento antigo continua funcionando)
+  if tg_op = 'UPDATE' and new.category_id is not distinct from old.category_id and new.account_id = old.account_id then return new; end if;
+  select a.allowed_category_ids into allowed from public.accounts a where a.id = new.account_id;
+  if allowed is not null and cardinality(allowed) > 0 and not (new.category_id = any(allowed)) then
+    raise exception 'Esta conta só aceita as categorias escolhidas para ela.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists bolso_account_categories on public.transactions;
+create trigger bolso_account_categories
+  before insert or update on public.transactions
+  for each row execute function public.enforce_account_categories();
+
+-- ============================================================
 -- ping(): usado pela rotina diária que evita a pausa do projeto gratuito
 -- ============================================================
 create or replace function public.ping()
