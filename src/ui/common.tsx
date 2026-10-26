@@ -120,7 +120,7 @@ export function TxRow({ tx, accounts, categories, onClick, showDate, hideAccount
       <span className="side">
         <b className={income ? 'green' : ''}><Money value={income ? tx.amount : transfer ? tx.amount : -tx.amount} signed={income} /></b>
         {pending && (
-          <button className="pay-btn" aria-label={`${income ? 'Marcar como recebido' : 'Marcar como pago'}: ${title}`}
+          <button className={`pay-btn ${income ? 'in' : 'out'}`} aria-label={`${income ? 'Marcar como recebido' : 'Marcar como pago'}: ${title}`}
             onClick={(e) => { e.stopPropagation(); void markPaid(tx); }}>
             <Check size={13} strokeWidth={3} /> {income ? 'Receber' : transfer ? 'Confirmar' : 'Pagar'}
           </button>
