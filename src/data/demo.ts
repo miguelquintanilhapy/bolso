@@ -1,12 +1,9 @@
-import type { DeletedRow, Db, SessionUser, Table } from './api';
+import type { Db, SessionUser, Table } from './api';
 
 const KEY = 'bolso:demo:v1';
 const USER: SessionUser = { id: 'demo-user', email: 'demo@bolso.local' };
-type Store = Record<Table, Record<string, unknown>[]> & { deleted_rows: DeletedRow[] };
-const empty = (): Store => ({ accounts: [], categories: [], transactions: [], recurrences: [], notifications: [], investment_snapshots: [], deleted_rows: [] });
-const now = () => new Date().toISOString();
-// contagem de linhas entregues (só para os testes verificarem que a abertura baixa pouco)
-const count = (k: 'listRows' | 'changeRows', n: number) => { const w = window as unknown as { __dbStats?: Record<string, number> }; (w.__dbStats ??= { listRows: 0, changeRows: 0 })[k] += n; };
+type Store = Record<Table, Record<string, unknown>[]>;
+const empty = (): Store => ({ accounts: [], categories: [], transactions: [], recurrences: [], notifications: [], investment_snapshots: [] });
 
 function load(): Store {
   try {
@@ -40,18 +37,7 @@ export function createDemoDb(): Db {
     },
     async list<T>(table: Table) {
       await lag();
-      count('listRows', store[table].length);
       return structuredClone(store[table]) as T[];
-    },
-    async changes<T>(table: Table, since: string) {
-      await lag();
-      const rows = store[table].filter((r) => ((r.updated_at as string | undefined) ?? '') >= since);
-      count('changeRows', rows.length);
-      return structuredClone(rows) as T[];
-    },
-    async deletedSince(since: string) {
-      await lag();
-      return structuredClone(store.deleted_rows.filter((d) => d.deleted_at >= since));
     },
     async insert<T>(table: Table, rows: object[], opts?: { ignoreDuplicates?: string }) {
       await lag();
@@ -60,7 +46,7 @@ export function createDemoDb(): Db {
       for (const r of rows as Record<string, unknown>[]) {
         if (cols?.length && cols.every((c) => r[c] != null) &&
           store[table].some((x) => cols.every((c) => x[c] === r[c]))) continue;
-        const row: Record<string, unknown> = { id: crypto.randomUUID(), created_at: now(), ...r, updated_at: now() };
+        const row: Record<string, unknown> = { id: crypto.randomUUID(), created_at: new Date().toISOString(), ...r };
         if (table === 'notifications') row.read = row.read ?? false;
         store[table].push(row);
         created.push(row);
@@ -72,31 +58,20 @@ export function createDemoDb(): Db {
       await lag();
       const row = store[table].find((r) => r.id === id);
       if (!row) throw new Error('Registro não encontrado');
-      Object.assign(row, patch, { updated_at: now() });
+      Object.assign(row, patch);
       persist();
       return structuredClone(row) as T;
     },
     async remove(table, ids) {
       await lag();
-      const gone: { tbl: Table; id: string }[] = [];
-      const drop = (tbl: Table, keep: (r: Record<string, unknown>) => boolean) => {
-        const kept: Record<string, unknown>[] = [];
-        for (const r of store[tbl]) {
-          if (keep(r)) kept.push(r);
-          else gone.push({ tbl, id: r.id as string });
-        }
-        store[tbl] = kept;
-      };
       const set = new Set(ids);
-      drop(table, (r) => !set.has(r.id as string));
+      store[table] = store[table].filter((r) => !set.has(r.id as string));
       // cascata mínima, como no banco
       if (table === 'accounts') {
-        drop('transactions', (t) => !set.has(t.account_id as string) && !set.has(t.to_account_id as string));
-        drop('recurrences', (t) => !set.has(t.account_id as string));
-        drop('investment_snapshots', (t) => !set.has(t.account_id as string));
+        store.transactions = store.transactions.filter((t) => !set.has(t.account_id as string) && !set.has(t.to_account_id as string));
+        store.recurrences = store.recurrences.filter((t) => !set.has(t.account_id as string));
+        store.investment_snapshots = store.investment_snapshots.filter((t) => !set.has(t.account_id as string));
       }
-      const at = now();
-      for (const g of gone) store.deleted_rows.push({ ...g, deleted_at: at });
       persist();
     },
   };
