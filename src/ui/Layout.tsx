@@ -6,6 +6,7 @@ import { useEditor } from './editors';
 import { getName } from '../lib/profile';
 import { SearchPalette, openSearch } from './SearchPalette';
 import { BrandLogo } from './BrandLogo';
+import { UpdateBar } from './UpdateBar';
 
 const items = [
   { to: '/', label: 'Início', icon: House, end: true },
@@ -115,6 +116,7 @@ export function Layout() {
   }, [newTx]);
   return (
     <>
+      <UpdateBar />
       <SearchPalette />
       <div className="status-fill" aria-hidden />
       <div className={`ptr${pull ? ' on' : ''}${spinning ? ' spin' : ''}`} style={{ transform: `translate(-50%, ${pull - 44}px)`, opacity: Math.min(1, pull / 40) }} aria-hidden><LoaderCircle size={22} /></div>
