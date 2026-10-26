@@ -52,9 +52,17 @@ export function planNotifications(args: {
   }
 
   for (const t of txs) {
-    if (t.status !== 'pending' || t.kind === 'income') continue;
+    if (t.status !== 'pending') continue;
     const days = diffDays(t.date, today);
     const name = t.description || 'Lançamento';
+    if (t.kind === 'income') {
+      // receita pendente: avisa que vai entrar (ou que ainda não foi marcada como recebida), nunca como conta a pagar
+      if (days < 0) push({ kind: 'pending', dedupe_key: `income-late:${t.id}`, link: `/lancamentos/${t.id}`,
+        title: `${name} ainda não foi marcado como recebido`, body: `Previsto para ${shortDate(t.date)}. Quando cair, marque como recebido.` });
+      else if (days <= 1) push({ kind: 'pending', dedupe_key: `income-due:${t.id}`, link: `/lancamentos/${t.id}`,
+        title: days === 0 ? `${name} entra hoje` : `${name} entra amanhã`, body: `${formatBRL(t.amount)} previstos.` });
+      continue;
+    }
     if (days < 0) {
       push({ kind: 'pending', dedupe_key: `pending-overdue:${t.id}`, link: `/lancamentos/${t.id}`,
         title: `${name} está atrasado`, body: `${formatBRL(t.amount)} com vencimento em ${shortDate(t.date)}.` });

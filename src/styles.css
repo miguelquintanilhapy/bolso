@@ -845,3 +845,5 @@ input[type='date']::-webkit-calendar-picker-indicator, input[type='month']::-web
   .topbar .page-title { margin-top: 6px; }
   .inline-bar { padding-top: env(safe-area-inset-top); }
 }
+.item .main small.amber, .item small.amber { color: var(--amber); font-weight: 600; }
+.item .main small.green { color: var(--green); font-weight: 600; }

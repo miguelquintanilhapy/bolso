@@ -318,6 +318,24 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   // grupo de atrasadas vira uma linha só
   check('ux: atrasadas do mesmo cartão viram uma linha', (await ux.locator('.group .item:has-text("atrasadas")').count()) === 1);
 
+  // receita futura: aparece como "entra", não como conta a vencer
+  {
+    const d = new Date(Date.now() + 2 * 864e5);
+    const dd = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+    await ux.fill('input[aria-label="Lançamento rápido"]', `+3000 salário extra ${dd}`);
+    await ux.press('input[aria-label="Lançamento rápido"]', 'Enter');
+    await ux.waitForSelector('.toast');
+    const row = ux.locator('.group .item:has-text("3.000,00")').first();
+    await row.waitFor({ timeout: 4000 }).catch(() => {});
+    const rowText = await row.innerText().catch(() => '');
+    check('ux: receita futura aparece como "Entra em…"', /Entra/.test(rowText), rowText);
+    check('ux: receita futura não aparece como "Vence"', !/Vence|Atrasad/.test(rowText), rowText);
+    await goto('/lancamentos'); await ux.waitForSelector('.swipe');
+    const ext = await ux.locator('.swipe:has-text("3.000,00"):has(.pay-btn)').first().innerText().catch(() => '');
+    check('ux: no extrato a receita pendente diz "entra" e o botão é "Receber"', /entra/i.test(ext) && /Receber/.test(ext) && !/vence/i.test(ext), ext);
+    await goto('/');
+  }
+
   // prévia, atalhos de valor e descartar
   await ux.click('.action:has-text("Despesa")'); await ux.waitForSelector('.sheet');
   await ux.fill('.amount-input', '50');
