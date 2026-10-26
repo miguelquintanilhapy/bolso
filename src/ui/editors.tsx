@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Check, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { Sheet, SheetClosing } from './Sheet';
@@ -11,6 +11,7 @@ import { accountBalance, buildInstallments, buildInvoice, cardOverview, invoiceM
 import { amountError, formatBRL, parseAmount, round2 } from '../lib/money';
 import { addDays, monthLabel, monthOf } from '../lib/dates';
 import { norm } from '../lib/quickEntry';
+import { allowedCategories, categoryAllowed, isRestricted, restrictionText } from '../lib/categoryRules';
 import { findDuplicate, getLastUsed, previewEffect, setLastUsed, suggestDescriptions } from '../lib/ux';
 
 export type TxInit = Partial<{
@@ -140,7 +141,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
   const [learn] = useState(init?.keyword ?? null);
   const [error, setError] = useState('');
   const [shake, setShake] = useState(0);
-  const [errField, setErrField] = useState<'amount' | 'to' | null>(null);
+  const [errField, setErrField] = useState<'amount' | 'to' | 'category' | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const confirm = useConfirm();
@@ -158,7 +159,8 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
     for (const t of s.transactions.slice(-500)) if (t.category_id && t.kind === catKind) m.set(t.category_id, (m.get(t.category_id) ?? 0) + 1);
     return m;
   }, [s.transactions, catKind]);
-  const cats = s.categories
+  const restricted = isRestricted(account);
+  const cats = allowedCategories(account, s.categories)
     .filter((c) => !c.archived && c.kind === catKind)
     .sort((a, b) => (usage.get(b.id) ?? 0) - (usage.get(a.id) ?? 0) || a.name.localeCompare(b.name));
   const value = parseAmount(amount);
@@ -168,7 +170,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
   const yesterday = addDays(s.today, -1);
   const dateMode: DateMode = showDate ? 'other' : date === s.today ? 'today' : date === yesterday ? 'yest' : 'other';
 
-  const fail = (msg: string, field: 'amount' | 'to' | null = null) => { setError(msg); setErrField(field); setShake((n) => n + 1); };
+  const fail = (msg: string, field: 'amount' | 'to' | 'category' | null = null) => { setError(msg); setErrField(field); setShake((n) => n + 1); };
 
   const addTag = () => {
     const t = norm(tagInput.replace(/^#/, '').trim());
@@ -195,6 +197,8 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
     if (!value) return fail(amountError(amount), 'amount');
     if (installments > 1 && value / installments < 0.01) return fail(`Valor pequeno demais para ${installments} parcelas (mínimo de R$ 0,01 cada).`);
     if (!accountId) return fail('Você ainda não tem conta. Toque em “Criar conta agora” no topo.');
+    if (kind !== 'transfer' && account && !existing && restricted && !categoryId) return fail(`Escolha uma categoria. ${restrictionText(account, s.categories)}`, 'category');
+    if (kind !== 'transfer' && account && !categoryAllowed(account, categoryId) && categoryId !== existing?.category_id) return fail(restrictionText(account, s.categories), 'category');
     if (kind === 'transfer' && account?.kind === 'credit') return fail('Não dá para transferir a partir de um cartão. Para pagar a fatura, transfira de uma conta para o cartão.');
     if (kind === 'transfer' && (!toId || toId === accountId)) return fail('Escolha para qual conta o dinheiro vai (diferente da origem).', 'to');
     const candidate = { kind, amount: value, date, description: description.trim(), account_id: accountId, to_account_id: kind === 'transfer' ? toId : null };
@@ -266,6 +270,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
   };
   const onEnter = (e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); void submit(); } };
 
+  useEffect(() => { if (categoryId && !categoryAllowed(account, categoryId) && categoryId !== existing?.category_id) setCategoryId(null); }, [accountId]); // eslint-disable-line react-hooks/exhaustive-deps
   const guardedClose = useGuardedClose(onClose, { kind, amount, description, categoryId, accountId, toId, date, status, installments, tags, tagInput, notes });
   const hints = existing || kind === 'transfer' ? [] : suggestDescriptions(s.transactions, kind, description);
   const effect = !value ? [] : previewEffect({
@@ -338,7 +343,8 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
         </Field>
       )}
       {kind !== 'transfer' && (
-        <Field label="Categoria" optional hint={categoryId ? undefined : 'Sem escolher, fica como “Sem categoria”.'}>
+        <Field label="Categoria" optional={!restricted || !!existing} error={errField === 'category' ? error : undefined}
+          hint={restricted && account ? restrictionText(account, s.categories) : categoryId ? undefined : 'Sem escolher, fica como “Sem categoria”.'}>
           <div className="chips">
             {cats.map((c) => (
               <button key={c.id} type="button" className={`chip ${categoryId === c.id ? 'active' : ''}`} aria-pressed={categoryId === c.id}
@@ -459,17 +465,21 @@ function AccountEditor({ id, thenTx, reopenTx, onClose }: { id?: string; thenTx?
   const existing = id ? s.accounts.find((a) => a.id === id) : undefined;
   const [name, setName] = useState(existing?.name ?? '');
   const [kind, setKind] = useState<AccountKind>(existing?.kind ?? 'checking');
-  const [initial, setInitial] = useState(existing ? String(existing.initial_balance).replace('.', ',') : '');
+  const [initial, setInitial] = useState(existing && existing.initial_balance !== 0 ? String(existing.initial_balance).replace('.', ',') : ''); // zero = campo vazio (o campo de valor não guarda "0")
   const [closing, setClosing] = useState(existing?.closing_day ? String(existing.closing_day) : '');
   const [due, setDue] = useState(existing?.due_day ? String(existing.due_day) : '');
   const [limit, setLimit] = useState(existing?.credit_limit ? String(existing.credit_limit).replace('.', ',') : '');
   const [color, setColor] = useState(existing?.color ?? KIND_INFO.checking.color);
   const [colorTouched, setColorTouched] = useState(!!existing);
   const [isDefault, setIsDefault] = useState(existing?.is_default ?? !s.accounts.some((a) => a.is_default));
+  const [limitCats, setLimitCats] = useState(isRestricted(existing));
+  const [allowedIds, setAllowedIds] = useState<string[]>(() => (existing?.allowed_category_ids ?? []).filter((id) => s.categories.some((c) => c.id === id)));
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const sending = useRef(false);
   const info = KIND_INFO[kind];
+  const liveCats = s.categories.filter((c) => !c.archived);
+  const outside = existing && limitCats ? s.transactions.filter((t) => t.account_id === existing.id && t.category_id && !allowedIds.includes(t.category_id)).length : 0;
   const duplicate = s.accounts.some((a) => a.id !== existing?.id && !a.archived && norm(a.name) === norm(name.trim()) && name.trim() !== '');
   const closingDay = Number(closing), dueDay = Number(due);
   const daysOk = closingDay >= 1 && closingDay <= 31 && dueDay >= 1 && dueDay <= 31;
@@ -482,6 +492,7 @@ function AccountEditor({ id, thenTx, reopenTx, onClose }: { id?: string; thenTx?
     if (init === null || Number.isNaN(init)) return setError(amountError(initial.trim().replace(/^-/, '')) || 'Saldo inicial inválido.');
     const c = closingDay, d = dueDay;
     if (kind === 'credit' && !daysOk) return setError('Informe o dia do fechamento e o do vencimento (1 a 31). Estão no app do seu banco.');
+    if (kind !== 'investment' && limitCats && !allowedIds.length) return setError('Escolha pelo menos uma categoria, ou desligue o limite de categorias.');
     sending.current = true;
     setBusy(true);
     try {
@@ -491,13 +502,16 @@ function AccountEditor({ id, thenTx, reopenTx, onClose }: { id?: string; thenTx?
         closing_day: kind === 'credit' ? c : null, due_day: kind === 'credit' ? d : null,
         credit_limit: kind === 'credit' && limit ? parseAmount(limit) : null, color, is_default: kind === 'checking' && isDefault,
         archived: existing?.archived ?? false,
+        // só envia o campo quando há o que guardar (assim quem não usa o recurso não depende da atualização do banco)
+        ...(kind !== 'investment' && limitCats ? { allowed_category_ids: allowedIds } : isRestricted(existing) ? { allowed_category_ids: null } : {}),
       });
       s.toast(existing ? 'Conta atualizada' : 'Conta criada');
       // veio de um lançamento sem conta: volta para ele com a conta nova já escolhida e o que foi digitado
       if (!existing && thenTx) reopenTx({ ...thenTx, account_id: savedAccount.id });
       else onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Não consegui salvar.');
+      const msg = e instanceof Error ? e.message : 'Não consegui salvar.';
+      setError(/allowed_category_ids/.test(msg) ? 'Para limitar categorias, rode o arquivo supabase/schema.sql de novo no Supabase (passo a passo em docs/SETUP.md) e tente de novo.' : msg);
       sending.current = false;
       setBusy(false);
     }
@@ -518,7 +532,7 @@ function AccountEditor({ id, thenTx, reopenTx, onClose }: { id?: string; thenTx?
     onClose();
   };
 
-  const guardedClose = useGuardedClose(onClose, { name, kind, initial, closing, due, limit, color, isDefault });
+  const guardedClose = useGuardedClose(onClose, { name, kind, initial, closing, due, limit, color, isDefault, limitCats, allowedIds });
   return (
     <Sheet title={TITLES[kind][existing ? 1 : 0]} onClose={guardedClose}
       footer={
@@ -560,6 +574,32 @@ function AccountEditor({ id, thenTx, reopenTx, onClose }: { id?: string; thenTx?
             <small className="muted" style={{ paddingLeft: 4 }}>Com o limite, o Bolso mostra quanto ainda está disponível.</small>
           </Field>
         </>
+      )}
+      {kind !== 'investment' && (
+        <div className="field">
+          <div className="row-field">
+            <span>Limitar categorias<small className="field-hint" style={{ display: 'block', padding: 0 }}>{kind === 'credit' ? 'O cartão só aceita compras nas categorias que você escolher.' : 'Ex.: um vale-refeição que só aceita Alimentação, Lazer e Transporte.'}</small></span>
+            <Switch checked={limitCats} onChange={setLimitCats} label="Limitar categorias" />
+          </div>
+          {limitCats && (
+            <div className="stack" style={{ gap: 10 }}>
+              {(['expense', 'income'] as const).map((k) => (
+                <div key={k}>
+                  <span className="lbl" style={{ display: 'block', marginBottom: 6 }}>{k === 'expense' ? 'Despesas' : 'Receitas'}</span>
+                  <div className="chips">
+                    {liveCats.filter((c) => c.kind === k).map((c) => (
+                      <button key={c.id} type="button" className={`chip ${allowedIds.includes(c.id) ? 'active' : ''}`} aria-pressed={allowedIds.includes(c.id)}
+                        onClick={() => setAllowedIds(allowedIds.includes(c.id) ? allowedIds.filter((x) => x !== c.id) : [...allowedIds, c.id])}>
+                        <CategoryIcon name={c.icon} size={16} /> {c.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {outside > 0 && <p className="field-hint">{outside} lançamento{outside > 1 ? 's' : ''} antigo{outside > 1 ? 's' : ''} desta conta usa{outside > 1 ? 'm' : ''} outras categorias e continua{outside > 1 ? 'm' : ''} como {outside > 1 ? 'estão' : 'está'}.</p>}
+            </div>
+          )}
+        </div>
       )}
       <Field label="Cor">
         <div className="swatches">
@@ -666,8 +706,10 @@ function RecurrenceEditor({ id, init, onClose }: { id?: string; init?: RecInit; 
   const [end, setEnd] = useState(existing?.end_month ?? '');
   const [active, setActive] = useState(existing?.active ?? true);
   const [error, setError] = useState('');
-  const cats = s.categories.filter((c) => !c.archived && c.kind === kind);
+  const recAccount = s.accounts.find((a) => a.id === accountId);
+  const cats = allowedCategories(recAccount, s.categories.filter((c) => !c.archived && c.kind === kind));
   const sending = useRef(false);
+  useEffect(() => { if (categoryId && !categoryAllowed(recAccount, categoryId)) setCategoryId(null); }, [accountId]); // eslint-disable-line react-hooks/exhaustive-deps
   const guardedClose = useGuardedClose(onClose, { kind, description, amount, accountId, categoryId, day, start, end, active });
 
   const submit = async () => {
@@ -677,6 +719,7 @@ function RecurrenceEditor({ id, init, onClose }: { id?: string; init?: RecInit; 
     if (!description.trim()) return setError('Dê um nome (ex.: Aluguel, Netflix).');
     if (!value) return setError(amountError(amount));
     if (!accountId) return setError('Crie uma conta primeiro.');
+    if (recAccount && isRestricted(recAccount) && !categoryId) return setError(`Escolha uma categoria. ${restrictionText(recAccount, s.categories)}`);
     if (!(d >= 1 && d <= 31)) return setError('Dia do mês entre 1 e 31.');
     if (end && end < start) return setError('O mês final não pode ser antes do inicial.');
     sending.current = true;
@@ -716,7 +759,7 @@ function RecurrenceEditor({ id, init, onClose }: { id?: string; init?: RecInit; 
           {s.accounts.filter((a) => !a.archived && a.kind !== 'investment').map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
       </Field>
-      <Field label="Categoria">
+      <Field label="Categoria" hint={recAccount && isRestricted(recAccount) ? restrictionText(recAccount, s.categories) : undefined}>
         <div className="chips">
           {cats.map((c) => (
             <button key={c.id} type="button" className={`chip ${categoryId === c.id ? 'active' : ''}`} onClick={() => setCategoryId(categoryId === c.id ? null : c.id)}>

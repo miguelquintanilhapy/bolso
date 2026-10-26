@@ -40,5 +40,20 @@ await db.exec(`insert into notifications (kind, title, dedupe_key) values ('x', 
 check('notificação com mesma chave é única', await rejects(`insert into notifications (kind, title, dedupe_key) values ('x', 'y', 'k1')`));
 check('ping() responde', (await db.query('select public.ping() as t')).rows[0].t != null);
 
+// categorias aceitas por conta
+const [lazer, moradia] = (await db.query(`insert into categories (name, kind) values ('Lazer', 'expense'), ('Moradia', 'expense') returning id`)).rows.map((r) => r.id);
+await db.exec(`insert into accounts (name, kind, allowed_category_ids) values ('Vale', 'checking', array['${lazer}']::uuid[])`);
+const vale = (await db.query(`select id from accounts where name = 'Vale'`)).rows[0].id;
+check('conta limitada aceita categoria permitida', !(await rejects(`insert into transactions (kind, amount, date, account_id, category_id) values ('expense', 5, '2026-10-04', '${vale}', '${lazer}')`)));
+check('conta limitada recusa outra categoria', await rejects(`insert into transactions (kind, amount, date, account_id, category_id) values ('expense', 5, '2026-10-04', '${vale}', '${moradia}')`));
+check('conta limitada aceita lançamento sem categoria', !(await rejects(`insert into transactions (kind, amount, date, account_id) values ('expense', 5, '2026-10-04', '${vale}')`)));
+check('conta sem limite aceita qualquer categoria', !(await rejects(`insert into transactions (kind, amount, date, account_id, category_id) values ('expense', 5, '2026-10-04', '${a}', '${moradia}')`)));
+check('trocar a categoria para uma não permitida é recusado', await rejects(`update transactions set category_id = '${moradia}' where account_id = '${vale}' and category_id = '${lazer}'`));
+await db.exec(`insert into transactions (kind, amount, date, account_id, category_id, status) values ('expense', 7, '2026-10-05', '${a}', '${moradia}', 'pending')`);
+await db.exec(`update transactions set account_id = '${a}' where false`);
+await db.exec(`update accounts set allowed_category_ids = array['${lazer}']::uuid[] where id = '${a}'`);
+check('marcar como pago um lançamento antigo de categoria agora proibida continua funcionando', !(await rejects(`update transactions set status = 'paid' where account_id = '${a}' and category_id = '${moradia}'`)));
+check('mover lançamento para conta que não aceita a categoria é recusado', await rejects(`update transactions set account_id = '${vale}' where account_id = '${a}' and category_id = '${moradia}'`));
+
 console.log(failures ? `\n${failures} falha(s)` : '\nschema OK');
 process.exit(failures ? 1 : 0);

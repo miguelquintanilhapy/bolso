@@ -8,6 +8,7 @@ import { Money } from '../ui/privacy';
 import { dayLabel, monthOf } from '../lib/dates';
 import { norm } from '../lib/quickEntry';
 import { round2 } from '../lib/money';
+import { newestFirst } from '../lib/finance';
 
 type Type = 'all' | 'expense' | 'income' | 'transfer' | 'pending';
 
@@ -56,7 +57,7 @@ export function Transactions() {
       .filter((t) => !categoryId || t.category_id === categoryId)
       .filter((t) => !tag || t.tags.includes(tag))
       .filter((t) => !needle || (haystack.get(t.id) ?? '').includes(needle))
-      .sort((a, b) => b.date.localeCompare(a.date));
+      .sort(newestFirst);
   }, [s.transactions, haystack, allTime, month, type, accountId, categoryId, tag, dq]);
 
   // mostra 100 por vez (o período todo pode ter milhares de linhas); o resto carrega ao rolar

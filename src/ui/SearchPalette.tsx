@@ -6,6 +6,7 @@ import { useEditor } from './editors';
 import { Money } from './privacy';
 import { norm } from '../lib/quickEntry';
 import { shortDate } from '../lib/dates';
+import { newestFirst } from '../lib/finance';
 
 export const openSearch = () => window.dispatchEvent(new Event('bolso:search'));
 
@@ -48,7 +49,7 @@ export function SearchPalette() {
         const acc = s.accounts.find((a) => a.id === t.account_id)?.name ?? '';
         return norm([t.description, t.notes, cat, acc, ...t.tags, String(t.amount).replace('.', ',')].join(' ')).includes(needle);
       })
-      .sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8)
+      .sort(newestFirst).slice(0, 8)
       .map<Hit>((t) => ({
         key: t.id, icon: 'tx', amount: t.kind === 'income' ? t.amount : -t.amount,
         title: t.description || s.categories.find((c) => c.id === t.category_id)?.name || (t.kind === 'transfer' ? 'Transferência' : 'Lançamento'),
