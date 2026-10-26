@@ -320,6 +320,12 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   // grupo de atrasadas vira uma linha só
   check('ux: atrasadas do mesmo cartão viram uma linha', (await ux.locator('.group .item:has-text("atrasadas")').count()) === 1);
 
+  // fonte única: nada em monoespaçada (code/kbd), nem na ajuda do campo rápido
+  await ux.click('button[aria-label="Como usar o lançamento rápido"]'); await ux.waitForSelector('.help-ex');
+  const mono = await ux.evaluate(() => [...document.querySelectorAll('body *')].filter((e) => /mono|courier/i.test(getComputedStyle(e).fontFamily)).length);
+  check('ux: nenhuma fonte monoespaçada na tela (ajuda do campo rápido)', mono === 0, String(mono));
+  await ux.keyboard.press('Escape'); await ux.waitForSelector('.overlay', { state: 'detached', timeout: 2000 }).catch(() => {});
+
   // receita futura: aparece como "entra", não como conta a vencer
   {
     const d = new Date(Date.now() + 2 * 864e5);
