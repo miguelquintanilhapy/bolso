@@ -47,6 +47,8 @@ export default defineConfig(({ mode }) => {
         ],
       },
       workbox: {
+        // o service worker novo assume sozinho assim que instala (antes ficava "esperando" para sempre e o app nunca atualizava)
+        skipWaiting: true, clientsClaim: true,
         navigateFallback: '/index.html', globPatterns: ['**/*.{js,css,html,svg,png,woff2}'], globIgnores: ['og-image.png'],
         runtimeCaching: [{ urlPattern: ({ url }: { url: URL }) => url.pathname === '/version.json', handler: 'NetworkOnly' }],
       },

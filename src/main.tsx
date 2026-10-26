@@ -1,7 +1,6 @@
 import { StrictMode } from 'react';
 import '@fontsource-variable/inter';
 import { createRoot } from 'react-dom/client';
-import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import './styles.css';
 import './lib/install';
@@ -21,14 +20,14 @@ createRoot(document.getElementById('root')!).render(
 
 startUpdateChecks();
 
-// Atualização automática: confere se há versão nova a cada 30 min e sempre que o app volta para a tela.
-// (registerType: 'autoUpdate' troca o service worker e recarrega a página sozinho.)
-registerSW({
-  immediate: true,
-  onRegisteredSW(_url, reg) {
-    if (!reg) return;
-    const check = () => { if (navigator.onLine) void reg.update().catch(() => {}); };
-    setInterval(check, 30 * 60 * 1000);
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
-  },
-});
+// Service worker (cópia offline e abertura rápida). Registrado à mão, sem recarregar a página por conta própria:
+// quem decide quando recarregar é src/lib/updates.ts (só em momento seguro, sem perder o que a pessoa está digitando).
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).then((reg) => {
+      const check = () => { if (navigator.onLine) void reg.update().catch(() => {}); };
+      setInterval(check, 30 * 60 * 1000);
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+    }).catch(() => { /* sem service worker o app funciona do mesmo jeito, só sem cópia offline */ });
+  });
+}

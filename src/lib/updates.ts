@@ -46,13 +46,35 @@ async function latestBuild(): Promise<string | null> {
 
 const readTried = () => { try { return sessionStorage.getItem(TRIED_KEY); } catch { return null; } };
 
-async function reloadNow(latest: string) {
-  try { sessionStorage.setItem(TRIED_KEY, latest); } catch { /* sem armazenamento */ }
+/** Espera o service worker novo (se houver) terminar de instalar e assumir; sem isso o recarregamento serviria a cópia velha. */
+async function waitForNewWorker(timeoutMs: number) {
   try {
-    // pede ao service worker para buscar a versão nova e esperar; se algo falhar, o reload comum resolve
     const reg = await navigator.serviceWorker?.getRegistration();
-    await reg?.update();
+    if (!reg) return;
+    await reg.update();
+    const sw = reg.installing ?? reg.waiting;
+    if (!sw || sw.state === 'activated') return;
+    await new Promise<void>((resolve) => {
+      const done = () => resolve();
+      sw.addEventListener('statechange', () => { if (sw.state === 'activated' || sw.state === 'redundant') done(); });
+      setTimeout(done, timeoutMs);
+    });
+  } catch { /* segue para o recarregamento */ }
+}
+
+/** Plano B (toque em "Atualizar agora"): apaga o service worker e as cópias guardadas e baixa tudo da rede. Os dados do app não são tocados. */
+async function hardReset() {
+  try {
+    const regs = (await navigator.serviceWorker?.getRegistrations()) ?? [];
+    await Promise.all(regs.map((r) => r.unregister()));
+    if ('caches' in window) await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
   } catch { /* segue */ }
+}
+
+async function reloadNow(latest: string, hard: boolean) {
+  try { sessionStorage.setItem(TRIED_KEY, latest); } catch { /* sem armazenamento */ }
+  if (hard) await hardReset();
+  else await waitForNewWorker(8000);
   location.reload();
 }
 
@@ -63,7 +85,8 @@ export async function checkForUpdate(opts?: { forced?: boolean }): Promise<void>
   const latest = (await latestBuild()) ?? latestSeen;
   if (latest) latestSeen = latest;
   const d = updateDecision({ current: currentBuild(), latest, safe: isSafeToReload(), visible: document.visibilityState === 'visible', triedFor: readTried(), forced: opts?.forced });
-  if (d === 'reload' && latest) { await reloadNow(latest); return; }
+  // toque do usuário em "Atualizar agora" = plano B completo; recarga automática = espera o service worker novo assumir
+  if (d === 'reload' && latest) { await reloadNow(latest, !!opts?.forced); return; }
   const next = d === 'banner';
   if (next !== pending) { pending = next; emit(); }
 }
