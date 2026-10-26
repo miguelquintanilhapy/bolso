@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collapseOverdue, findDuplicate, pendingWhen, previewEffect, suggestDescriptions } from './ux';
+import { collapseOverdue, findDuplicate, launchInfo, pendingWhen, previewEffect, suggestDescriptions } from './ux';
 import type { Account, NewTransaction, Transaction } from './types';
 
 const acc = (id: string, kind: Account['kind'], initial = 0): Account => ({ id, name: id, kind, initial_balance: initial, closing_day: 10, due_day: 17, credit_limit: null, color: '#000', is_default: false, archived: false } as unknown as Account);
@@ -76,5 +76,27 @@ describe('pendingWhen', () => {
   it('conta continua com vence/atrasado', () => {
     expect(pendingWhen(false, '2026-10-26', '2026-10-23').text).toMatch(/^Vence em/);
     expect(pendingWhen(false, '2026-10-20', '2026-10-23')).toEqual({ text: 'Atrasado desde 20/10', tone: 'red' });
+  });
+});
+
+describe('launchInfo (horário do lançamento)', () => {
+  const at = (y: number, m: number, d: number, h: number, mi: number) => new Date(y, m - 1, d, h, mi).toISOString(); // horário local
+  it('mostra a hora local do registro', () => {
+    const i = launchInfo({ created_at: at(2026, 10, 26, 14, 32), date: '2026-10-26' })!;
+    expect(i.time).toBe('14:32');
+    expect(i.sameDay).toBe(true);
+    expect(i.full).toBe('26/10/2026 às 14:32');
+    expect(i.csv).toBe('2026-10-26 14:32');
+  });
+  it('lançado num dia para uma data de outro dia: sameDay falso', () => {
+    const i = launchInfo({ created_at: at(2026, 10, 26, 9, 5), date: '2026-10-25' })!;
+    expect(i.sameDay).toBe(false);
+    expect(i.dm).toBe('26/10');
+    expect(i.time).toBe('09:05');
+  });
+  it('recorrência (criada sozinha) e sem horário não mostram', () => {
+    expect(launchInfo({ created_at: at(2026, 10, 26, 8, 0), date: '2026-10-26', recurrence_id: 'r' })).toBeNull();
+    expect(launchInfo({ date: '2026-10-26' })).toBeNull();
+    expect(launchInfo({ created_at: 'lixo', date: '2026-10-26' })).toBeNull();
   });
 });

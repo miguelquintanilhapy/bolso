@@ -885,3 +885,5 @@ kbd { font-size: 11px; }
 .pay-btn:active { transform: scale(0.94); }
 .item .side { display: flex; flex-direction: column; align-items: flex-end; }
 .item .main small.restrict { color: var(--text-2); white-space: normal; }
+.item .side small.when { color: var(--muted); font-size: 13px; margin-top: 1px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.launched { font-size: 13px; margin-top: -6px; }

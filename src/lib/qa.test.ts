@@ -401,3 +401,15 @@ describe('ordem das listas: mais recente em cima', () => {
     expect([t('x', '2026-10-01'), t('y', '2026-10-02')].sort(newestFirst).map((x) => x.id)).toEqual(['y', 'x']);
   });
 });
+
+describe('exportação CSV com horário', () => {
+  it('inclui a coluna lancado_em com data e hora locais; vazio para o que foi criado sozinho', () => {
+    const base = { description: 'x', notes: '', tags: [], status: 'paid', account_id: 'a', to_account_id: null, category_id: null, installment_group: null, installment_number: null, installment_total: null, ref_month: null, invoice_ref: null, kind: 'expense', amount: 5, date: '2026-10-26' };
+    const manual = { ...base, id: '1', recurrence_id: null, created_at: new Date(2026, 9, 26, 14, 32).toISOString() } as unknown as Transaction;
+    const auto = { ...base, id: '2', recurrence_id: 'r', created_at: new Date(2026, 9, 26, 3, 0).toISOString() } as unknown as Transaction;
+    const lines = transactionsToCSV([manual, auto], [{ id: 'a', name: 'Conta' } as never], []).split('\r\n');
+    expect(lines[0]).toMatch(/;"?lancado_em"?$|lancado_em$/);
+    expect(lines[1]).toContain('"2026-10-26 14:32"');
+    expect(lines[2].endsWith('""')).toBe(true);
+  });
+});

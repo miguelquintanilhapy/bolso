@@ -594,6 +594,10 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   await go('/lancamentos'); await rp.waitForSelector('.swipe');
   const hoje = await rp.locator('.list > .list:has(.day-label:has-text("Hoje")) > .swipe').allInnerTexts();
   check('extrato: no mesmo dia, o último lançado fica em cima', /uber/i.test(hoje[0] ?? '') && /mercado/i.test(hoje[1] ?? '') && hoje.findIndex((t) => /Padaria/.test(t)) > 1, hoje.map((t) => t.split('\n')[0]).join(' | '));
+  check('horário: cada lançamento mostra a hora em que foi feito', /\b\d{2}:\d{2}\b/.test(hoje[0] ?? '') && /\b\d{2}:\d{2}\b/.test(hoje[1] ?? ''), hoje[0]);
+  await rp.click('.list > .list:has(.day-label:has-text("Hoje")) > .swipe >> nth=0 >> .item'); await rp.waitForSelector('.sheet');
+  check('horário: o formulário informa "Lançado em dd/mm/aaaa às hh:mm"', /Lançado em \d{2}\/\d{2}\/\d{4} às \d{2}:\d{2}/.test(await rp.locator('.sheet .launched').innerText().catch(() => '')));
+  await esc(rp);
   const homeRows = await (async () => { await go('/'); await rp.waitForSelector('.hero'); return rp.locator('.list > .list:has(.day-label:has-text("Hoje")) > .swipe').allInnerTexts(); })();
   check('início: a lista de últimos lançamentos também mostra o mais recente em cima', /uber/i.test(homeRows[0] ?? ''), homeRows.map((t) => t.split('\n')[0]).join(' | '));
 

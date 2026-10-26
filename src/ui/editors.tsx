@@ -12,7 +12,7 @@ import { amountError, formatBRL, parseAmount, round2 } from '../lib/money';
 import { addDays, monthLabel, monthOf } from '../lib/dates';
 import { norm } from '../lib/quickEntry';
 import { allowedCategories, categoryAllowed, isRestricted, restrictionText } from '../lib/categoryRules';
-import { findDuplicate, getLastUsed, previewEffect, setLastUsed, suggestDescriptions } from '../lib/ux';
+import { findDuplicate, getLastUsed, launchInfo, previewEffect, setLastUsed, suggestDescriptions } from '../lib/ux';
 
 export type TxInit = Partial<{
   kind: TxKind; amount: number; description: string; category_id: string | null; account_id: string; to_account_id: string | null;
@@ -424,6 +424,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
         </Field>
       )}
       {existing?.installment_total ? <p className="muted">Parcela {existing.installment_number} de {existing.installment_total}</p> : null}
+      {existing && (launchInfo(existing) ? <p className="muted launched">Lançado em {launchInfo(existing)!.full}</p> : existing.recurrence_id ? <p className="muted launched">Criado automaticamente pela recorrência</p> : null)}
 
       <Field label="Tags" optional hint="Para agrupar gastos, ex.: viagem, mae. Toque em + para adicionar.">
         <div className="chips">
