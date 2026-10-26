@@ -1,0 +1,30 @@
+# Mantém o projeto gratuito do Supabase ativo: faz uma chamada mínima ao banco todo dia.
+# Precisa dos secrets SUPABASE_URL e SUPABASE_ANON_KEY (Settings → Secrets and variables → Actions).
+# Agendamentos do GitHub só rodam na branch padrão (main).
+name: Manter Supabase ativo
+
+on:
+  schedule:
+    - cron: '17 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar ping()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "Defina os secrets SUPABASE_URL e SUPABASE_ANON_KEY." >&2
+            exit 1
+          fi
+          curl --fail --silent --show-error --retry 3 --retry-delay 5 \
+            -X POST "$SUPABASE_URL/rest/v1/rpc/ping" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+          echo
