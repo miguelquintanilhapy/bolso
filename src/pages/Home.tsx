@@ -7,7 +7,7 @@ import { Empty, SectionTitle, TxRow, dayNet } from '../ui/common';
 import { useEditor } from '../ui/editors';
 import { useConfirm } from '../ui/confirm';
 import { openSearch } from '../ui/SearchPalette';
-import { collapseOverdue, findDuplicate } from '../lib/ux';
+import { collapseOverdue, findDuplicate, pendingWhen } from '../lib/ux';
 import { ModalSheet } from '../ui/Sheet';
 import { INVOICE_STATUS, KIND_ICON, KIND_LABEL } from '../ui/accountUi';
 import { describeAccount } from '../lib/accountInfo';
@@ -247,9 +247,11 @@ export function Home() {
                 {soon.slice(0, 5).map((u) => (
                   <button key={u.id} className="item" onClick={() => nav(u.link)}>
                     <span className={`ico ${u.kind === 'income' ? 'in' : u.date < s.today ? 'bad' : ''}`}>{u.kind === 'invoice' ? <Wallet size={19} /> : u.kind === 'income' ? <ArrowDown size={19} /> : <ArrowUp size={19} />}</span>
-                    <span className="main"><b>{u.title}</b><small className={u.date < s.today ? 'red' : ''}>{u.date < s.today
-                      ? ((u as { count?: number }).count && (u as { count?: number }).count! > 1 ? `${(u as { count?: number }).count} atrasadas · desde ${shortDate(u.date)}` : `Atrasado desde ${shortDate(u.date)}`)
-                      : (/^\d/.test(dayLabel(u.date, s.today)) ? `Vence em ${dayLabel(u.date, s.today)}` : `Vence ${dayLabel(u.date, s.today).toLowerCase()} · ${shortDate(u.date)}`)}</small></span>
+                    <span className="main"><b>{u.title}</b><small className={(() => { const w = pendingWhen(u.kind === 'income', u.date, s.today); return w.tone; })()}>{(() => {
+                      const cnt = (u as { count?: number }).count;
+                      if (u.kind === 'invoice' && u.date < s.today && cnt && cnt > 1) return `${cnt} atrasadas · desde ${shortDate(u.date)}`;
+                      return pendingWhen(u.kind === 'income', u.date, s.today).text;
+                    })()}</small></span>
                     <span className="side"><b className={u.kind === 'income' ? 'green' : ''}><Money value={u.amount} signed={u.kind === 'income'} /></b></span>
                   </button>
                 ))}

@@ -3,6 +3,7 @@ import { accountBalance, buildInstallments } from './finance';
 import { formatBRL, round2 } from './money';
 import { norm } from './quickEntry';
 import type { Upcoming } from './finance';
+import { dayLabel } from './dates';
 
 /** Efeito do lançamento nos saldos, em frases curtas, antes de salvar. */
 export function previewEffect(opts: {
@@ -86,4 +87,18 @@ export function getLastUsed(): Last {
 }
 export function setLastUsed(patch: Last) {
   try { localStorage.setItem(KEY, JSON.stringify({ ...getLastUsed(), ...patch })); } catch { /* sem armazenamento */ }
+}
+
+/** Como falar de um lançamento pendente: conta "vence"; receita "entra" (nunca "vence" nem "atrasado"). */
+export function pendingWhen(income: boolean, date: string, today: string): { text: string; tone: 'red' | 'green' | 'amber' | '' } {
+  const dm = `${date.slice(8, 10)}/${date.slice(5, 7)}`;
+  const late = date < today;
+  if (income) {
+    if (late) return { text: `Previsto para ${dm} · ainda não recebido`, tone: 'amber' };
+    const label = dayLabel(date, today);
+    return { text: /^\d/.test(label) ? `Entra em ${label}` : `Entra ${label.toLowerCase()} · ${dm}`, tone: 'green' };
+  }
+  if (late) return { text: `Atrasado desde ${dm}`, tone: 'red' };
+  const label = dayLabel(date, today);
+  return { text: /^\d/.test(label) ? `Vence em ${label}` : `Vence ${label.toLowerCase()} · ${dm}`, tone: '' };
 }

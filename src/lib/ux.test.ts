@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collapseOverdue, findDuplicate, previewEffect, suggestDescriptions } from './ux';
+import { collapseOverdue, findDuplicate, pendingWhen, previewEffect, suggestDescriptions } from './ux';
 import type { Account, NewTransaction, Transaction } from './types';
 
 const acc = (id: string, kind: Account['kind'], initial = 0): Account => ({ id, name: id, kind, initial_balance: initial, closing_day: 10, due_day: 17, credit_limit: null, color: '#000', is_default: false, archived: false } as unknown as Account);
@@ -58,5 +58,23 @@ describe('collapseOverdue', () => {
     const r = collapseOverdue([u('1', '2026-08-17', 100), u('2', '2026-09-17', 200), u('3', '2026-10-25', 50), u('4', '2026-10-01', 10, 'bill')], today);
     expect(r).toHaveLength(3);
     expect(r[0]).toMatchObject({ amount: 300, count: 2, date: '2026-08-17' });
+  });
+});
+
+describe('pendingWhen', () => {
+  it('receita futura "entra", nunca "vence"', () => {
+    expect(pendingWhen(true, '2026-10-26', '2026-10-23')).toEqual({ text: 'Entra em 26 de out', tone: 'green' });
+    expect(pendingWhen(true, '2026-10-24', '2026-10-23').text).toMatch(/^Entra amanhã · 24\/10$/);
+    expect(pendingWhen(true, '2026-10-23', '2026-10-23').text).toMatch(/^Entra hoje/);
+  });
+  it('receita que não caiu não é "atrasada"', () => {
+    const w = pendingWhen(true, '2026-10-20', '2026-10-23');
+    expect(w.text).toBe('Previsto para 20/10 · ainda não recebido');
+    expect(w.tone).toBe('amber');
+    expect(w.text).not.toMatch(/atras|venc/i);
+  });
+  it('conta continua com vence/atrasado', () => {
+    expect(pendingWhen(false, '2026-10-26', '2026-10-23').text).toMatch(/^Vence em/);
+    expect(pendingWhen(false, '2026-10-20', '2026-10-23')).toEqual({ text: 'Atrasado desde 20/10', tone: 'red' });
   });
 });

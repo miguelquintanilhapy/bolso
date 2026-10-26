@@ -87,7 +87,9 @@ export function TxRow({ tx, accounts, categories, onClick, showDate, hideAccount
   const late = pending && tx.date < today;
   const title = tx.description || (transfer ? 'Transferência' : cat?.name || (income ? 'Receita' : 'Despesa'));
   const dm = tx.date.slice(8, 10) + '/' + tx.date.slice(5, 7);
-  const due = late ? `atrasado desde ${dm}` : `vence ${dm}`;
+  const due = income
+    ? (late ? `previsto ${dm} · não recebido` : `entra ${dm}`)
+    : (late ? `atrasado desde ${dm}` : `vence ${dm}`);
   // pendente: o vencimento vem primeiro (é o que importa); o botão "Pagar" ocupa a direita
   const sub = (pending
     ? [due, transfer ? `${acc?.name ?? '—'} → ${to?.name ?? '—'}` : cat?.name ?? 'Sem categoria', tx.installment_total ? `${tx.installment_number}/${tx.installment_total}` : null]
@@ -108,12 +110,12 @@ export function TxRow({ tx, accounts, categories, onClick, showDate, hideAccount
     <div className={`item ${flash.has(tx.id) ? 'flash' : ''} ${swipe.dragging ? 'dragging' : ''}`} role="button" tabIndex={0} onClick={click}
       style={swipe.dx ? { transform: `translateX(${swipe.dx}px)` } : undefined} {...swipe.handlers}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
-      <span className={`ico ${income ? 'in' : ''} ${late ? 'bad' : ''}`}>
+      <span className={`ico ${income ? 'in' : ''} ${late && !income ? 'bad' : ''}`}>
         {transfer ? <ArrowLeftRight size={19} /> : cat ? <CategoryIcon name={cat.icon} /> : income ? <ArrowDown size={19} /> : <ArrowUp size={19} />}
       </span>
       <span className="main">
         <b>{title}</b>
-        <small className={late ? 'red' : ''}>{sub}{tx.tags.length ? ` · ${tx.tags.map((t) => '#' + t).join(' ')}` : ''}</small>
+        <small className={pending && income ? (late ? 'amber' : 'green') : late ? 'red' : ''}>{sub}{tx.tags.length ? ` · ${tx.tags.map((t) => '#' + t).join(' ')}` : ''}</small>
       </span>
       <span className="side">
         <b className={income ? 'green' : ''}><Money value={income ? tx.amount : transfer ? tx.amount : -tx.amount} signed={income} /></b>
