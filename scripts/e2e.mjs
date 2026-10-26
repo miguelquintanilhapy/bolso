@@ -549,6 +549,38 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   }
 }
 
+// ── muitos lançamentos: o extrato mostra 100 por vez e carrega o resto ao rolar
+{
+  const bctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'pt-BR', reducedMotion: 'reduce' });
+  const bp = await bctx.newPage();
+  await bp.goto(`${url}/?demo`); await bp.waitForSelector('.hero');
+  await bp.evaluate(() => {
+    const store = JSON.parse(localStorage.getItem('bolso:demo:v1'));
+    const sample = store.transactions.find((t) => t.kind === 'expense');
+    const rows = [];
+    for (let i = 0; i < 450; i++) {
+      const d = new Date(Date.now() - (i % 700) * 864e5 - 864e5 * 2);
+      rows.push({ ...sample, id: crypto.randomUUID(), amount: 10 + (i % 37), description: `Mercado ${i}`, date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, status: 'paid' });
+    }
+    store.transactions.push(...rows);
+    localStorage.setItem('bolso:demo:v1', JSON.stringify(store));
+  });
+  await bp.reload(); await bp.waitForSelector('.hero');
+  await bp.click('nav a:has-text("Extrato")'); await bp.waitForSelector('.swipe');
+  await bp.click('button:has-text("Filtros")'); await bp.check('input[type=checkbox]');
+  await bp.waitForSelector('.more-rows');
+  const first = await bp.locator('.swipe').count();
+  check('muitos lançamentos: período todo mostra só uma parte (≈100) com "Mostrar mais"', first >= 90 && first <= 115, String(first));
+  check('muitos lançamentos: o botão informa quantos faltam', /faltam \d+/.test(await bp.locator('.more-rows').innerText()));
+  await bp.evaluate(() => window.scrollTo(0, document.body.scrollHeight)); await bp.waitForTimeout(700);
+  const second = await bp.locator('.swipe').count();
+  check('muitos lançamentos: rolar até o fim carrega mais linhas', second > first, `${first} → ${second}`);
+  await bp.fill('input[aria-label="Buscar"]', 'mercado 4'); await bp.waitForTimeout(500);
+  const found = await bp.locator('.swipe').count();
+  check('muitos lançamentos: a busca vale para o período todo (não só para o que está na tela)', found >= 11 && found <= 115, String(found));
+  await bctx.close();
+}
+
 // ── computador e tablet
 {
   const desk = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();

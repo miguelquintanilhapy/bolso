@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Account, Category, Recurrence, Snapshot, Transaction } from './types';
 import {
-  accountBalance, budgetStatuses, buildInstallments, buildInvoice, cardOverview, forecast, invoiceDueDate, invoiceMonthOf,
+  accountBalance, budgetStatuses, buildInstallments, buildInvoice, invoiceMonths, cardOverview, forecast, invoiceDueDate, invoiceMonthOf,
   investmentStats, monthSummary, netWorth, netWorthSeries, splitInstallments,
 } from './finance';
 import { addDays, addMonthsToDate, dayLabel, dateInMonth, diffDays, monthRange, toISO } from './dates';
@@ -347,5 +347,46 @@ describe('campo de valor estilo banco', () => {
   });
   it('o valor digitado é aceito pelo parseAmount', () => {
     expect(parseAmount(type('123456'))).toBe(1234.56);
+  });
+});
+
+describe('faturas: índice por cartão dá o mesmo resultado da conta direta', () => {
+  // implementação de referência, simples e lenta (a que existia antes da otimização)
+  const ref = (card: Account, txs: Transaction[], month: string) => {
+    const closing = card.closing_day ?? 28;
+    const mOf = (d: string) => (Number(d.slice(8, 10)) <= closing ? d.slice(0, 7) : addMonthsToMonthRef(d.slice(0, 7)));
+    const own = txs.filter((t) => t.account_id === card.id && t.kind !== 'transfer' && mOf(t.date) === month);
+    const total = round2(own.reduce((s, t) => s + (t.kind === 'income' ? -t.amount : t.amount), 0));
+    const need = new Map<string, number>();
+    for (const t of txs) if (t.account_id === card.id && t.kind !== 'transfer') need.set(mOf(t.date), (need.get(mOf(t.date)) ?? 0) + (t.kind === 'income' ? -t.amount : t.amount));
+    const explicit = new Map<string, number>(); let pool = 0;
+    for (const t of txs) { if (t.kind !== 'transfer' || t.to_account_id !== card.id || t.status !== 'paid') continue; if (t.invoice_ref) explicit.set(t.invoice_ref, (explicit.get(t.invoice_ref) ?? 0) + t.amount); else pool += t.amount; }
+    const loose = new Map<string, number>();
+    for (const m of [...need.keys()].sort()) { const open = Math.max(0, round2((need.get(m) ?? 0) - (explicit.get(m) ?? 0))); const used = Math.min(pool, open); if (used > 0) { loose.set(m, round2(used)); pool = round2(pool - used); } }
+    return { total, paid: round2((explicit.get(month) ?? 0) + (loose.get(month) ?? 0)) };
+  };
+  const addMonthsToMonthRef = (m: string) => { const [y, mo] = m.split('-').map(Number); return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`; };
+  it('mesmo total e valor pago em todos os meses (dados aleatórios com pagamentos soltos e com fatura indicada)', () => {
+    let seed = 11; const rnd = () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296;
+    const card = { id: 'k', name: 'K', kind: 'credit', initial_balance: 0, closing_day: 10, due_day: 17 } as unknown as Account;
+    const txs: Transaction[] = [];
+    for (let i = 0; i < 800; i++) {
+      const d = `2025-${String(1 + Math.floor(rnd() * 12)).padStart(2, '0')}-${String(1 + Math.floor(rnd() * 28)).padStart(2, '0')}`;
+      const r = rnd();
+      const base = { id: 't' + i, date: d, description: '', notes: '', tags: [], status: rnd() < 0.9 ? 'paid' : 'pending', category_id: null, installment_group: null, installment_number: null, installment_total: null, recurrence_id: null, ref_month: null };
+      if (r < 0.8) txs.push({ ...base, kind: rnd() < 0.05 ? 'income' : 'expense', amount: round2(10 + rnd() * 400), account_id: 'k', to_account_id: null, invoice_ref: null } as Transaction);
+      else txs.push({ ...base, kind: 'transfer', amount: round2(50 + rnd() * 600), account_id: 'c', to_account_id: 'k', invoice_ref: rnd() < 0.5 ? `2025-${String(1 + Math.floor(rnd() * 12)).padStart(2, '0')}` : null } as Transaction);
+    }
+    for (const m of invoiceMonths(card, txs, '2025-12-20')) {
+      const a = buildInvoice(card, txs, m), b = ref(card, txs, m);
+      expect([m, a.total, a.paid]).toEqual([m, b.total, b.paid]);
+    }
+  });
+  it('uma nova lista de lançamentos não usa o índice antigo', () => {
+    const card = { id: 'k', name: 'K', kind: 'credit', initial_balance: 0, closing_day: 10, due_day: 17 } as unknown as Account;
+    const t1 = { id: 'a', kind: 'expense', amount: 100, date: '2026-10-05', description: '', notes: '', tags: [], status: 'paid', account_id: 'k', to_account_id: null, category_id: null, installment_group: null, installment_number: null, installment_total: null, recurrence_id: null, ref_month: null, invoice_ref: null } as Transaction;
+    expect(buildInvoice(card, [t1], '2026-10').total).toBe(100);
+    expect(buildInvoice(card, [t1, { ...t1, id: 'b', amount: 50 }], '2026-10').total).toBe(150);
+    expect(buildInvoice(card, [{ ...t1, amount: 30 }], '2026-10').total).toBe(30);
   });
 });

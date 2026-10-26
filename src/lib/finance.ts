@@ -87,46 +87,60 @@ export interface Invoice {
 
 const cardDays = (card: Account) => ({ closing: card.closing_day ?? 28, due: card.due_day ?? 10 });
 
-/**
- * Pagamentos que não indicam a fatura são abatidos da mais antiga em aberto (como no banco).
- * Retorna quanto de cada mês foi coberto por esses pagamentos "soltos".
- */
-function looseAllocation(card: Account, txs: Transaction[]): Map<string, number> {
+interface CardIndex {
+  /** Compras do cartão agrupadas pelo mês da fatura. */
+  byMonth: Map<string, Transaction[]>;
+  /** Pagamentos efetivados que apontam para uma fatura. */
+  explicit: Map<string, number>;
+  /** Pagamentos soltos, abatidos da fatura mais antiga em aberto. */
+  loose: Map<string, number>;
+}
+
+// Uma passada pelos lançamentos por cartão (em vez de uma por fatura): com milhares de lançamentos a tela inicial ficava lenta.
+// A lista de lançamentos é imutável no app (cada mudança cria um array novo), então o cache por array é seguro.
+const indexCache = new WeakMap<Transaction[], Map<string, { len: number; idx: CardIndex }>>();
+
+function cardIndex(card: Account, txs: Transaction[]): CardIndex {
   const { closing } = cardDays(card);
-  const need = new Map<string, number>();
-  for (const t of txs) {
-    if (t.account_id === card.id && t.kind !== 'transfer') {
-      const m = invoiceMonthOf(t.date, closing);
-      need.set(m, (need.get(m) ?? 0) + (t.kind === 'income' ? -t.amount : t.amount));
-    }
-  }
+  const key = `${card.id}|${closing}`;
+  let perCard = indexCache.get(txs);
+  if (!perCard) indexCache.set(txs, (perCard = new Map()));
+  const hit = perCard.get(key);
+  if (hit && hit.len === txs.length) return hit.idx;
+
+  const byMonth = new Map<string, Transaction[]>();
   const explicit = new Map<string, number>();
   let pool = 0;
   for (const t of txs) {
-    if (t.kind !== 'transfer' || t.to_account_id !== card.id || t.status !== 'paid') continue;
-    if (t.invoice_ref) explicit.set(t.invoice_ref, (explicit.get(t.invoice_ref) ?? 0) + t.amount);
-    else pool += t.amount;
+    if (t.account_id === card.id && t.kind !== 'transfer') {
+      const m = invoiceMonthOf(t.date, closing);
+      const list = byMonth.get(m);
+      if (list) list.push(t); else byMonth.set(m, [t]);
+    } else if (t.kind === 'transfer' && t.to_account_id === card.id && t.status === 'paid') {
+      if (t.invoice_ref) explicit.set(t.invoice_ref, (explicit.get(t.invoice_ref) ?? 0) + t.amount);
+      else pool += t.amount;
+    }
   }
-  const out = new Map<string, number>();
-  for (const m of [...need.keys()].sort()) {
-    const open = Math.max(0, round2((need.get(m) ?? 0) - (explicit.get(m) ?? 0)));
+  // pagamentos que não indicam a fatura são abatidos da mais antiga em aberto (como no banco)
+  const loose = new Map<string, number>();
+  for (const m of [...byMonth.keys()].sort()) {
+    const need = (byMonth.get(m) ?? []).reduce((sum, t) => sum + (t.kind === 'income' ? -t.amount : t.amount), 0);
+    const open = Math.max(0, round2(need - (explicit.get(m) ?? 0)));
     const used = Math.min(pool, open);
-    if (used > 0) { out.set(m, round2(used)); pool = round2(pool - used); }
+    if (used > 0) { loose.set(m, round2(used)); pool = round2(pool - used); }
   }
-  return out;
+  const idx = { byMonth, explicit, loose };
+  perCard.set(key, { len: txs.length, idx });
+  return idx;
 }
 
 export function buildInvoice(card: Account, txs: Transaction[], month: string): Invoice {
   const { closing, due } = cardDays(card);
-  const own = txs.filter(
-    (t) => t.account_id === card.id && t.kind !== 'transfer' && invoiceMonthOf(t.date, closing) === month,
-  );
+  const idx = cardIndex(card, txs);
+  const own = [...(idx.byMonth.get(month) ?? [])];
   const total = round2(own.reduce((s, t) => s + (t.kind === 'income' ? -t.amount : t.amount), 0));
   // só pagamento efetivado conta: um pagamento agendado (pendente) ainda não pagou a fatura
-  const explicit = txs
-    .filter((t) => t.kind === 'transfer' && t.to_account_id === card.id && t.invoice_ref === month && t.status === 'paid')
-    .reduce((s, t) => s + t.amount, 0);
-  const paid = round2(explicit + (looseAllocation(card, txs).get(month) ?? 0));
+  const paid = round2((idx.explicit.get(month) ?? 0) + (idx.loose.get(month) ?? 0));
   return {
     month,
     total,
@@ -141,8 +155,7 @@ export function buildInvoice(card: Account, txs: Transaction[], month: string): 
 /** Meses com movimento no cartão + o mês da fatura atual. */
 export function invoiceMonths(card: Account, txs: Transaction[], today: string): string[] {
   const { closing } = cardDays(card);
-  const set = new Set<string>([invoiceMonthOf(today, closing)]);
-  for (const t of txs) if (t.account_id === card.id && t.kind !== 'transfer') set.add(invoiceMonthOf(t.date, closing));
+  const set = new Set<string>([invoiceMonthOf(today, closing), ...cardIndex(card, txs).byMonth.keys()]);
   return [...set].sort();
 }
 
