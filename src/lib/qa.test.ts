@@ -6,7 +6,7 @@ import {
   investmentStats, monthSummary, netWorth, netWorthSeries, splitInstallments,
 } from './finance';
 import { addDays, addMonthsToDate, dayLabel, dateInMonth, diffDays, monthRange, toISO } from './dates';
-import { amountError, compactBRL, formatBRL, parseAmount, round2, splitBRL } from './money';
+import { amountError, compactBRL, formatBRL, parseAmount, round2, splitBRL, typedToValue, valueToDisplay } from './money';
 import { parseQuickEntry } from './quickEntry';
 import { planRecurrences } from './recurrence';
 import { transactionsToCSV } from './exports';
@@ -311,5 +311,41 @@ describe('cartão: visão geral', () => {
     const ov = cardOverview(card, [], T);
     expect(ov.committed).toBe(0);
     expect(ov.focus).toBeTruthy();
+  });
+});
+
+describe('campo de valor estilo banco', () => {
+  const type = (digits: string, allowNegative = false) => digits.split('').reduce((v, d) => typedToValue(valueToDisplay(v) + d, v, allowNegative) ?? v, '');
+  it('1 → 0,01 · 10 → 0,10 · 100 → 1,00', () => {
+    expect(valueToDisplay(type('1'))).toBe('0,01');
+    expect(valueToDisplay(type('10'))).toBe('0,10');
+    expect(valueToDisplay(type('100'))).toBe('1,00');
+    expect(valueToDisplay(type('123456'))).toBe('1.234,56');
+  });
+  it('zeros à esquerda não contam; zero fica vazio', () => {
+    expect(type('0')).toBe('');
+    expect(type('0005')).toBe('0,05');
+  });
+  it('apagar (backspace) tira o último dígito', () => {
+    const v = type('12345');
+    expect(typedToValue(valueToDisplay(v).slice(0, -1), v)).toBe('12,34');
+  });
+  it('limite de 11 dígitos é respeitado', () => {
+    expect(typedToValue('99999999999' + '9', '')).toBeNull();
+    expect(valueToDisplay(type('99999999999'))).toBe('999.999.999,99');
+  });
+  it('valores já guardados aparecem com 2 casas', () => {
+    expect(valueToDisplay('50,5')).toBe('50,50');
+    expect(valueToDisplay('1234,56')).toBe('1.234,56');
+    expect(valueToDisplay('')).toBe('');
+  });
+  it('sinal negativo só quando permitido; outro "-" volta para positivo', () => {
+    expect(typedToValue('-5', '', false)).toBe('0,05');
+    expect(typedToValue('-5', '', true)).toBe('-0,05');
+    expect(typedToValue('--5', '-0,05', true)).toBe('0,05');
+    expect(typedToValue('5', '-0,05', true)).toBe('0,05');
+  });
+  it('o valor digitado é aceito pelo parseAmount', () => {
+    expect(parseAmount(type('123456'))).toBe(1234.56);
   });
 });

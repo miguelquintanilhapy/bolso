@@ -4,6 +4,7 @@ import { useStore } from '../store';
 import { Sheet, SheetClosing } from './Sheet';
 import { useConfirm } from './confirm';
 import { Segmented, Switch } from './common';
+import { MoneyInput } from './MoneyInput';
 import { CATEGORY_ICONS, CategoryIcon, COLORS } from './icons';
 import type { Account, AccountKind, Category, NewTransaction, Recurrence, Snapshot, Transaction, TxKind } from '../lib/types';
 import { accountBalance, buildInstallments, buildInvoice, cardOverview, invoiceMonths } from '../lib/finance';
@@ -297,7 +298,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
         options={[{ id: 'expense', label: 'Despesa' }, { id: 'income', label: 'Receita' }, { id: 'transfer', label: 'Transferência' }]} />
       <div className="amount-wrap">
         <small>Valor (R$)</small>
-        <input className="amount-input" inputMode="decimal" placeholder="0,00" value={amount} onChange={(e) => setAmount(e.target.value)}
+        <MoneyInput className="amount-input" placeholder="0,00" value={amount} onChange={setAmount}
           onKeyDown={onEnter} aria-label="Valor" autoFocus={!existing} enterKeyHint="done" aria-invalid={errField === 'amount'} />
         {installments > 1 && value ? <small>{installments}x de {formatBRL(value / installments)}</small> : null}
         {errField === 'amount' && error && <p className="field-error" role="alert">{error}</p>}
@@ -526,7 +527,7 @@ function AccountEditor({ id, onClose }: { id?: string; onClose: () => void }) {
       </Field>
       {kind !== 'credit' && (
         <Field label={existing ? 'Saldo inicial (R$)' : 'Saldo atual (R$)'}>
-          <input className="input" inputMode="decimal" value={initial} onChange={(e) => setInitial(e.target.value)} placeholder="0,00" />
+          <MoneyInput className="input" value={initial} onChange={setInitial} allowNegative placeholder="0,00" />
           <small className="muted" style={{ paddingLeft: 4 }}>
             {existing ? 'Valor de partida. Para corrigir o saldo de hoje, use "Ajustar saldo" na tela da conta.'
               : kind === 'investment' ? 'Quanto você tem investido hoje.' : 'Quanto tem hoje. É a partir daqui que o Bolso soma e subtrai.'}
@@ -545,7 +546,7 @@ function AccountEditor({ id, onClose }: { id?: string; onClose: () => void }) {
             <p className="muted" style={{ fontSize: 13.5 }}>Fechamento e vencimento aparecem no app do seu banco, na tela da fatura.</p>
           )}
           <Field label="Limite do cartão (R$, opcional)">
-            <input className="input" inputMode="decimal" value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="0,00" />
+            <MoneyInput className="input" value={limit} onChange={setLimit} placeholder="0,00" />
             <small className="muted" style={{ paddingLeft: 4 }}>Com o limite, o Bolso mostra quanto ainda está disponível.</small>
           </Field>
         </>
@@ -618,7 +619,7 @@ function CategoryEditor({ id, kind: initKind, onClose }: { id?: string; kind?: '
       {!existing && <Segmented value={kind} onChange={setKind} options={[{ id: 'expense', label: 'Despesa' }, { id: 'income', label: 'Receita' }]} />}
       <Field label="Nome"><input className="input" value={name} onChange={(e) => setName(e.target.value)} /></Field>
       {kind === 'expense' && (
-        <Field label="Limite mensal (R$, opcional)"><input className="input" inputMode="decimal" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="Sem limite" /></Field>
+        <Field label="Limite mensal (R$, opcional)"><MoneyInput className="input" value={budget} onChange={setBudget} placeholder="Sem limite" /></Field>
       )}
       <Field label="Palavras-chave do campo rápido (separe por vírgula)">
         <input className="input" value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="mercado, padaria, ifood" />
@@ -699,7 +700,7 @@ function RecurrenceEditor({ id, init, onClose }: { id?: string; init?: RecInit; 
       }>
       <Segmented value={kind} onChange={(k) => { setKind(k); setCategoryId(null); }} options={[{ id: 'expense', label: 'Despesa' }, { id: 'income', label: 'Receita' }]} />
       <Field label="Nome"><input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex.: Aluguel, Netflix" /></Field>
-      <Field label="Valor mensal (R$)"><input className="input" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" /></Field>
+      <Field label="Valor mensal (R$)"><MoneyInput className="input" value={amount} onChange={setAmount} placeholder="0,00" /></Field>
       <Field label="Conta">
         <select className="select" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
           {s.accounts.filter((a) => !a.archived && a.kind !== 'investment').map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -760,7 +761,7 @@ function SnapshotEditor({ accountId, onClose }: { accountId: string; onClose: ()
         </>
       }>
       <p className="muted">Olhe quanto tem hoje em <b>{acc?.name}</b> no app da corretora ou do banco e informe abaixo. O Bolso calcula o rendimento.</p>
-      <Field label="Saldo atual (R$)"><input className="input" inputMode="decimal" value={balance} onChange={(e) => setBalance(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void submit()} autoFocus placeholder="0,00" /></Field>
+      <Field label="Saldo atual (R$)"><MoneyInput className="input" value={balance} onChange={setBalance} onKeyDown={(e) => e.key === 'Enter' && void submit()} autoFocus placeholder="0,00" /></Field>
       {gain !== null && (
         <p className="callout">
           O Bolso esperava <b>{formatBRL(expected)}</b> (último saldo + aportes). {gain === 0 ? 'Bateu exatamente.' : <>Diferença: <b className={gain > 0 ? 'green' : 'red'}>{gain > 0 ? '+' : ''}{formatBRL(gain)}</b> {gain > 0 ? 'de rendimento' : 'de variação negativa'}.</>}
@@ -815,7 +816,7 @@ function AdjustEditor({ accountId, onClose }: { accountId: string; onClose: () =
         <div className="mini"><span>Saldo no Bolso</span><b>{formatBRL(current)}</b></div>
         <div className="mini"><span>{acc?.name}</span><b>hoje</b></div>
       </div>
-      <Field label="Saldo real (R$)"><input className="input" inputMode="decimal" value={real} onChange={(e) => setReal(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void submit()} autoFocus placeholder="0,00" /></Field>
+      <Field label="Saldo real (R$)"><MoneyInput className="input" value={real} onChange={setReal} allowNegative onKeyDown={(e) => e.key === 'Enter' && void submit()} autoFocus placeholder="0,00" /></Field>
       {diff !== null && (
         <p className="callout">{diff === 0 ? 'Já está certo, nada a ajustar.' : <>Será criado um lançamento de <b className={diff > 0 ? 'green' : 'red'}>{diff > 0 ? 'receita' : 'despesa'} de {formatBRL(Math.abs(diff))}</b> chamado "Ajuste de saldo", com a tag #ajuste.</>}</p>
       )}
