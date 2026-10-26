@@ -474,6 +474,40 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   check('instalar: no computador não aparece o aviso de celular', (await desk2.locator('.install').count()) === 0);
 }
 
+// ── sem conta: criar direto do formulário e voltar com tudo preenchido; alerta legível no tema "Auto" escuro
+{
+  const dctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'pt-BR', colorScheme: 'dark', reducedMotion: 'reduce' });
+  const nf = await dctx.newPage();
+  await nf.goto(url); await nf.waitForSelector('.hero');
+  await nf.click('.action:has-text("Despesa")'); await nf.waitForSelector('.sheet');
+  check('sem conta: o formulário avisa e oferece "Criar conta agora"', (await nf.locator('.no-account button:has-text("Criar conta agora")').count()) === 1);
+  await money(nf, '.amount-input', '50,00');
+  await nf.fill('.sheet input[placeholder="Ex.: Mercado"]', 'Pizza');
+  await nf.click('.sheet .foot-actions .btn.primary');
+  check('sem conta: salvar explica o que fazer (sem mandar procurar em outra aba)', /Criar conta agora/.test(await nf.locator('.sheet .error-text').innerText()));
+  // alerta de descartar: legível no escuro (fundo escuro, texto claro, quase opaco)
+  await nf.keyboard.press('Escape'); await nf.waitForSelector('.ios-alert');
+  const look = await nf.evaluate(() => {
+    const lum = (c) => { const m = c.match(/[\d.]+/g).map(Number); return (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255; };
+    const al = getComputedStyle(document.querySelector('.ios-alert')); const h = getComputedStyle(document.querySelector('.ios-alert h2'));
+    const a = al.backgroundColor.match(/[\d.]+/g).map(Number);
+    return { bg: lum(al.backgroundColor), text: lum(h.color), alpha: a[3] ?? 1 };
+  });
+  check('alerta no Auto escuro: fundo escuro, texto claro, quase opaco', look.bg < 0.3 && look.text > 0.7 && look.alpha >= 0.9, JSON.stringify(look));
+  await nf.click('.ios-alert button:has-text("Cancelar")'); await nf.waitForTimeout(300);
+  await nf.click('.no-account button:has-text("Criar conta agora")');
+  await nf.waitForSelector('.sheet[aria-label="Nova conta"], .sheet:has-text("Nova conta")');
+  await nf.fill('.sheet input[placeholder^="Ex.: Nubank"]', 'Carteira');
+  await nf.click('.sheet .foot-actions .btn.primary');
+  await nf.waitForSelector('.sheet:has-text("Nova despesa")', { timeout: 5000 });
+  check('sem conta: criar a conta volta ao lançamento com a conta já escolhida', (await nf.locator('.sheet .chip.active:has-text("Carteira")').count()) === 1);
+  check('sem conta: valor e descrição continuam preenchidos', (await nf.inputValue('.amount-input')) === '50,00' && (await nf.inputValue('.sheet input[placeholder="Ex.: Mercado"]')) === 'Pizza');
+  await nf.click('.sheet .foot-actions .btn.primary');
+  await nf.waitForSelector('.sheet', { state: 'detached' });
+  check('sem conta: o lançamento é salvo na conta nova', (await nf.locator('.toast:has-text("salvo")').count()) === 1);
+  await dctx.close();
+}
+
 // ── computador e tablet
 {
   const desk = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();

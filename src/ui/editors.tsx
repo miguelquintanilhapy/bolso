@@ -22,7 +22,7 @@ export type RecInit = { description?: string; kind?: 'expense' | 'income' };
 
 type Open =
   | { type: 'tx'; id?: string; init?: TxInit }
-  | { type: 'account'; id?: string }
+  | { type: 'account'; id?: string; thenTx?: TxInit }
   | { type: 'category'; id?: string; kind?: 'expense' | 'income' }
   | { type: 'recurrence'; id?: string; init?: RecInit }
   | { type: 'snapshot'; accountId: string }
@@ -31,7 +31,7 @@ type Open =
 interface EditorApi {
   newTx: (init?: TxInit) => void;
   editTx: (id: string) => void;
-  openAccount: (id?: string) => void;
+  openAccount: (id?: string, thenTx?: TxInit) => void;
   openCategory: (id?: string, kind?: 'expense' | 'income') => void;
   openRecurrence: (id?: string, init?: RecInit) => void;
   openSnapshot: (accountId: string) => void;
@@ -61,7 +61,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const api = useMemo<EditorApi>(() => ({
     newTx: (init) => show({ type: 'tx', init }),
     editTx: (id) => show({ type: 'tx', id }),
-    openAccount: (id) => show({ type: 'account', id }),
+    openAccount: (id, thenTx) => show({ type: 'account', id, thenTx }),
     openCategory: (id, kind) => show({ type: 'category', id, kind }),
     openRecurrence: (id, init) => show({ type: 'recurrence', id, init }),
     openSnapshot: (accountId) => show({ type: 'snapshot', accountId }),
@@ -72,7 +72,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       {children}
       <SheetClosing.Provider value={closing}>
         {open?.type === 'tx' && <TxEditor key={open.id ?? 'new'} id={open.id} init={open.init} onClose={close} />}
-        {open?.type === 'account' && <AccountEditor id={open.id} onClose={close} />}
+        {open?.type === 'account' && <AccountEditor id={open.id} thenTx={open.thenTx} reopenTx={(init) => show({ type: 'tx', init })} onClose={close} />}
         {open?.type === 'category' && <CategoryEditor id={open.id} kind={open.kind} onClose={close} />}
         {open?.type === 'recurrence' && <RecurrenceEditor id={open.id} init={open.init} onClose={close} />}
         {open?.type === 'snapshot' && <SnapshotEditor accountId={open.accountId} onClose={close} />}
@@ -120,6 +120,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
   const s = useStore();
   const existing = id ? s.transactions.find((t) => t.id === id) : undefined;
   const live = s.accounts.filter((a) => !a.archived);
+  const { openAccount } = useEditor();
   const [kind, setKind] = useState<TxKind>(existing?.kind ?? init?.kind ?? 'expense');
   const [amount, setAmount] = useState(existing ? String(existing.amount).replace('.', ',') : init?.amount ? String(init.amount).replace('.', ',') : '');
   const [description, setDescription] = useState(existing?.description ?? init?.description ?? '');
@@ -193,7 +194,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
     if (sending.current) return;
     if (!value) return fail(amountError(amount), 'amount');
     if (installments > 1 && value / installments < 0.01) return fail(`Valor pequeno demais para ${installments} parcelas (mínimo de R$ 0,01 cada).`);
-    if (!accountId) return fail('Crie uma conta primeiro (aba Mais → Contas, cartões e investimentos).');
+    if (!accountId) return fail('Você ainda não tem conta. Toque em “Criar conta agora” no topo.');
     if (kind === 'transfer' && account?.kind === 'credit') return fail('Não dá para transferir a partir de um cartão. Para pagar a fatura, transfira de uma conta para o cartão.');
     if (kind === 'transfer' && (!toId || toId === accountId)) return fail('Escolha para qual conta o dinheiro vai (diferente da origem).', 'to');
     const candidate = { kind, amount: value, date, description: description.trim(), account_id: accountId, to_account_id: kind === 'transfer' ? toId : null };
@@ -290,6 +291,13 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
           </div>
         </>
       }>
+      {live.length === 0 && (
+        <div className="no-account" role="note">
+          <b>Você ainda não tem conta</b>
+          <p>Todo lançamento fica numa conta (onde o dinheiro está). Crie a primeira, leva 20 segundos, e volte aqui com tudo preenchido.</p>
+          <button type="button" className="btn primary" onClick={() => openAccount(undefined, { kind, amount: value ?? undefined, description, category_id: categoryId, date, status, tags, installments })}>Criar conta agora</button>
+        </div>
+      )}
       <Segmented<TxKind> value={kind} onChange={(k) => {
         setKind(k); setCategoryId(null); setCategoryTouched(false);
         // cartão de crédito não pode ser a origem de uma transferência
@@ -445,7 +453,7 @@ const TITLES: Record<AccountKind, [string, string]> = {
   investment: ['Novo investimento', 'Editar investimento'],
 };
 
-function AccountEditor({ id, onClose }: { id?: string; onClose: () => void }) {
+function AccountEditor({ id, thenTx, reopenTx, onClose }: { id?: string; thenTx?: TxInit; reopenTx: (init: TxInit) => void; onClose: () => void }) {
   const s = useStore();
   const confirm = useConfirm();
   const existing = id ? s.accounts.find((a) => a.id === id) : undefined;
@@ -478,14 +486,16 @@ function AccountEditor({ id, onClose }: { id?: string; onClose: () => void }) {
     setBusy(true);
     try {
       if (isDefault) for (const a of s.accounts.filter((a) => a.is_default && a.id !== existing?.id)) await s.save<Account>('accounts', { id: a.id, is_default: false });
-      await s.save<Account>('accounts', {
+      const savedAccount = await s.save<Account>('accounts', {
         ...(existing ? { id: existing.id } : {}), name: name.trim(), kind, initial_balance: init,
         closing_day: kind === 'credit' ? c : null, due_day: kind === 'credit' ? d : null,
         credit_limit: kind === 'credit' && limit ? parseAmount(limit) : null, color, is_default: kind === 'checking' && isDefault,
         archived: existing?.archived ?? false,
       });
       s.toast(existing ? 'Conta atualizada' : 'Conta criada');
-      onClose();
+      // veio de um lançamento sem conta: volta para ele com a conta nova já escolhida e o que foi digitado
+      if (!existing && thenTx) reopenTx({ ...thenTx, account_id: savedAccount.id });
+      else onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não consegui salvar.');
       sending.current = false;

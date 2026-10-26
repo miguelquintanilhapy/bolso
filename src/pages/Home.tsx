@@ -91,7 +91,7 @@ export function Home() {
     if (!r.ok) return s.toast(r.reason);
     const d = r.draft;
     const acc = s.accounts.find((a) => a.id === d.account_id) ?? s.accounts.find((a) => a.is_default && !a.archived) ?? live.find((a) => a.kind === 'checking') ?? live[0];
-    if (!acc) { s.toast('Crie uma conta primeiro.'); return; }
+    if (!acc) { s.toast('Você ainda não tem conta.', { label: 'Criar conta', run: () => openAccount() }); return; }
     // categoria desconhecida: abre o formulário já preenchido (e aprende a palavra ao salvar)
     if (!d.category_id) {
       setText('');
