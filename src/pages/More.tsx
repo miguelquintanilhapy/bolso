@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, ChevronRight, Download, Eye, FileJson, Landmark, LogOut, Palette, Pencil, Repeat, Tags } from 'lucide-react';
+import { Bell, ChevronRight, Download, Smartphone, Eye, FileJson, Landmark, LogOut, Palette, Pencil, Repeat, Tags } from 'lucide-react';
 import { useStore } from '../store';
 import { Segmented, Switch } from '../ui/common';
 import { usePrivacy } from '../ui/privacy';
 import { ModalSheet } from '../ui/Sheet';
+import { INSTALL_STEPS, useInstall } from '../lib/install';
 import { getName, setName } from '../lib/profile';
 import { download, transactionsToCSV } from '../lib/exports';
 import { todayISO } from '../lib/dates';
@@ -27,6 +28,8 @@ export function More() {
   const [editName, setEditName] = useState(false);
   const [draft, setDraft] = useState('');
   const [adv, setAdv] = useState(false);
+  const { mode: installMode, install } = useInstall();
+  const [installHelp, setInstallHelp] = useState(false);
   const saveName = () => { setName(draft); setNameState(getName(s.user.email)); setEditName(false); s.toast('Nome atualizado'); };
   const pick = (t: Theme) => {
     setTheme(t);
@@ -65,6 +68,19 @@ export function More() {
         {row('/recorrencias', <Repeat size={19} />, 'Recorrências e assinaturas')}
         {row('/notificacoes', <Bell size={19} />, 'Notificações', unread ? <span className="badge pending">{unread} nova{unread > 1 ? 's' : ''}</span> : undefined)}
       </div>
+
+      {installMode !== 'none' && (
+        <div className="group">
+          <button className="item" onClick={() => (installMode === 'prompt' ? void install() : setInstallHelp(true))}>
+            <span className="ico"><Smartphone size={19} /></span>
+            <span className="main"><b>Instalar o Bolso no celular</b><small>{installMode === 'prompt' ? 'Toque para instalar como app' : 'Veja como adicionar à tela inicial'}</small></span>
+            <ChevronRight className="chev" size={18} />
+          </button>
+        </div>
+      )}
+      <ModalSheet open={installHelp} onClose={() => setInstallHelp(false)} title="Instalar o Bolso">
+        <p>{installMode === 'ios' ? INSTALL_STEPS.ios : INSTALL_STEPS.android}</p>
+      </ModalSheet>
 
       <span className="group-title">Preferências</span>
       <div className="group">
