@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Receipt, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useStore } from '../store';
@@ -39,25 +39,43 @@ export function Transactions() {
     }
   }, [id, editTx, nav, s.transactions]);
 
+  // texto de busca de cada lançamento, normalizado uma vez (não a cada letra digitada)
+  const haystack = useMemo(() => {
+    const catName = new Map(s.categories.map((c) => [c.id, c.name]));
+    const accName = new Map(s.accounts.map((a) => [a.id, a.name]));
+    return new Map(s.transactions.map((t) => [t.id, norm([t.description, t.notes, catName.get(t.category_id ?? '') ?? '', accName.get(t.account_id) ?? '', ...t.tags].join(' '))]));
+  }, [s.transactions, s.categories, s.accounts]);
+  const dq = useDeferredValue(q); // a digitação não trava enquanto a lista é refeita
   const tags = useMemo(() => [...new Set(s.transactions.flatMap((t) => t.tags))].sort(), [s.transactions]);
   const filtered = useMemo(() => {
-    const needle = norm(q.trim());
+    const needle = norm(dq.trim());
     return s.transactions
       .filter((t) => (allTime || monthOf(t.date) === month))
       .filter((t) => (type === 'all' ? true : type === 'pending' ? t.status === 'pending' : t.kind === type))
       .filter((t) => !accountId || t.account_id === accountId || t.to_account_id === accountId)
       .filter((t) => !categoryId || t.category_id === categoryId)
       .filter((t) => !tag || t.tags.includes(tag))
-      .filter((t) => {
-        if (!needle) return true;
-        const cat = s.categories.find((c) => c.id === t.category_id)?.name ?? '';
-        const acc = s.accounts.find((a) => a.id === t.account_id)?.name ?? '';
-        return norm([t.description, t.notes, cat, acc, ...t.tags].join(' ')).includes(needle);
-      })
+      .filter((t) => !needle || (haystack.get(t.id) ?? '').includes(needle))
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [s.transactions, s.categories, s.accounts, allTime, month, type, accountId, categoryId, tag, q]);
+  }, [s.transactions, haystack, allTime, month, type, accountId, categoryId, tag, dq]);
 
-  const groups = filtered.reduce<Record<string, typeof filtered>>((m, t) => ((m[t.date] ||= []).push(t), m), {});
+  // mostra 100 por vez (o período todo pode ter milhares de linhas); o resto carrega ao rolar
+  const PAGE = 100;
+  const [limit, setLimit] = useState(PAGE);
+  useEffect(() => setLimit(PAGE), [month, allTime, type, dq, accountId, categoryId, tag]);
+  let cut = Math.min(limit, filtered.length);
+  while (cut > 0 && cut < filtered.length && filtered[cut].date === filtered[cut - 1].date) cut++; // não corta um dia ao meio (o total do dia ficaria errado)
+  const visible = cut < filtered.length ? filtered.slice(0, cut) : filtered;
+  const more = filtered.length - visible.length;
+  const sentinel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || more <= 0) return;
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) setLimit((l) => l + PAGE); }, { rootMargin: '600px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [more, limit]);
+  const groups = visible.reduce<Record<string, typeof filtered>>((m, t) => ((m[t.date] ||= []).push(t), m), {});
   const inc = round2(filtered.filter((t) => t.kind === 'income').reduce((x, t) => x + t.amount, 0));
   const exp = round2(filtered.filter((t) => t.kind === 'expense').reduce((x, t) => x + t.amount, 0));
   const activeFilters = [accountId, categoryId, tag].filter(Boolean).length;
@@ -143,6 +161,11 @@ export function Transactions() {
               {rows.map((t) => <TxRow key={t.id} tx={t} accounts={s.accounts} categories={s.categories} onClick={() => editTx(t.id)} />)}
             </div>
           ))}
+          {more > 0 && (
+            <div ref={sentinel} className="more-rows">
+              <button className="btn sm" onClick={() => setLimit((l) => l + PAGE)}>Mostrar mais {Math.min(PAGE, more)} <span className="muted">· faltam {more}</span></button>
+            </div>
+          )}
         </div>
       )}
       </div>
