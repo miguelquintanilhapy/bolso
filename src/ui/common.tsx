@@ -4,6 +4,7 @@ import { useStore } from '../store';
 import type { Account, Category, Transaction } from '../lib/types';
 import { addMonthsToMonth, monthLabel } from '../lib/dates';
 import { Money } from './privacy';
+import { launchInfo } from '../lib/ux';
 import { CategoryIcon } from './icons';
 
 export function Pills<T extends string>({ value, options, onChange }: { value: T; options: { id: T; label: string }[]; onChange: (v: T) => void }) {
@@ -100,6 +101,7 @@ export function TxRow({ tx, accounts, categories, onClick, showDate, hideAccount
         showDate ? dm : null,
       ]
   ).filter(Boolean).join(' · ');
+  const launch = launchInfo(tx);
   const click = () => { if (swipe.open) swipe.close(); else onClick(); };
   return (
     <div className="swipe">
@@ -119,6 +121,7 @@ export function TxRow({ tx, accounts, categories, onClick, showDate, hideAccount
       </span>
       <span className="side">
         <b className={income ? 'green' : ''}><Money value={income ? tx.amount : transfer ? tx.amount : -tx.amount} signed={income} /></b>
+        {!pending && launch && <small className="when" title={`Lançado em ${launch.full}`}>{launch.sameDay ? launch.time : `lançado ${launch.dm} ${launch.time}`}</small>}
         {pending && (
           <button className={`pay-btn ${income ? 'in' : 'out'}`} aria-label={`${income ? 'Marcar como recebido' : 'Marcar como pago'}: ${title}`}
             onClick={(e) => { e.stopPropagation(); void markPaid(tx); }}>
