@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import './styles.css';
+import './lib/install';
 import './ui/splash/bolso-splash.css';
 import { showBolsoSplash } from './ui/splash/bolso-splash.js';
 

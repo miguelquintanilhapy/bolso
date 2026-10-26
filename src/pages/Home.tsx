@@ -7,6 +7,7 @@ import { Empty, SectionTitle, TxRow, dayNet } from '../ui/common';
 import { useEditor } from '../ui/editors';
 import { useConfirm } from '../ui/confirm';
 import { openSearch } from '../ui/SearchPalette';
+import { INSTALL_STEPS, useInstall } from '../lib/install';
 import { collapseOverdue, findDuplicate, pendingWhen } from '../lib/ux';
 import { ModalSheet } from '../ui/Sheet';
 import { INVOICE_STATUS, KIND_ICON, KIND_LABEL } from '../ui/accountUi';
@@ -36,8 +37,6 @@ const EXAMPLES: [string, string][] = [
 const LS = (k: string) => { try { return localStorage.getItem(k) === '1'; } catch { return false; } };
 const setLS = (k: string) => { try { localStorage.setItem(k, '1'); } catch { /* sem armazenamento */ } };
 
-const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-const isStandalone = () => (navigator as unknown as { standalone?: boolean }).standalone === true || matchMedia('(display-mode: standalone)').matches;
 
 export function Home() {
   const s = useStore();
@@ -82,7 +81,8 @@ export function Home() {
   ];
   const doneCount = steps.filter((x) => x.done).length;
   const showSteps = !stepsHidden && doneCount < steps.length;
-  const showInstall = !installHidden && isIOS() && !isStandalone();
+  const { mode: installMode, install } = useInstall();
+  const showInstall = !installHidden && installMode !== 'none';
 
   const quick = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,8 +142,11 @@ export function Home() {
         <div className="install" role="note">
           <Share size={22} style={{ flex: 'none', marginTop: 2 }} />
           <div style={{ flex: 1 }}>
-            <b>Instale o Bolso no iPhone</b>
-            <p className="muted" style={{ fontSize: 13.5 }}>No Safari, toque em Compartilhar e depois em “Adicionar à Tela de Início”.</p>
+            <b>Instale o Bolso no celular</b>
+            <p className="muted" style={{ fontSize: 13.5 }}>
+              {installMode === 'prompt' ? 'Abre mais rápido e fica como um app, sem a barra do navegador.' : installMode === 'ios' ? INSTALL_STEPS.ios : INSTALL_STEPS.android}
+            </p>
+            {installMode === 'prompt' && <button className="btn primary sm" style={{ marginTop: 10 }} onClick={() => void install()}>Instalar</button>}
           </div>
           <button className="x" aria-label="Dispensar" onClick={() => { setLS('bolso:install-off'); setInstallHidden(true); }}><X size={18} /></button>
         </div>

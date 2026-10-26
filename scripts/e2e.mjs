@@ -445,6 +445,35 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   await uxCtx.close();
 }
 
+// ── instalar o app: Android (Chrome), iPhone (Safari) e computador
+{
+  const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36';
+  const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+  const open = async (userAgent) => {
+    const pg = await (await browser.newContext({ viewport: { width: 390, height: 844 }, userAgent, isMobile: true, hasTouch: true })).newPage();
+    await pg.goto(`${url}/?demo`); await pg.waitForSelector('.hero');
+    return pg;
+  };
+  const droid = await open(ANDROID);
+  await droid.waitForSelector('.install', { timeout: 6000 }).catch(() => {});
+  check('instalar: Android sem botão nativo mostra o passo a passo do menu ⋮', /três pontinhos/.test(await droid.locator('.install').innerText().catch(() => '')));
+  check('instalar: Android não manda procurar o Safari', !/Safari/.test(await droid.locator('.install').innerText().catch(() => 'Safari')));
+  await droid.evaluate(() => { window.__prompted = 0; const e = new Event('beforeinstallprompt'); e.prompt = async () => { window.__prompted++; }; e.userChoice = Promise.resolve({ outcome: 'accepted' }); window.dispatchEvent(e); });
+  await droid.waitForSelector('.install button:has-text("Instalar")', { timeout: 3000 }).catch(() => {});
+  check('instalar: com o aviso do Chrome aparece o botão "Instalar"', (await droid.locator('.install button:has-text("Instalar")').count()) === 1);
+  await droid.click('.install button:has-text("Instalar")');
+  check('instalar: o botão abre a instalação nativa', (await droid.evaluate(() => window.__prompted)) === 1);
+  await droid.evaluate(() => { history.pushState({}, '', '/mais'); dispatchEvent(new PopStateEvent('popstate')); });
+  await droid.waitForSelector('.page-title:has-text("Mais")');
+  check('instalar: "Mais" tem o atalho para ver como instalar', (await droid.locator('.item:has-text("Instalar o Bolso")').count()) === 1);
+  const iph = await open(IPHONE);
+  await iph.waitForSelector('.install');
+  check('instalar: iPhone mostra o passo a passo do Safari', /Safari/.test(await iph.locator('.install').innerText()));
+  const desk2 = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
+  await desk2.goto(`${url}/?demo`); await desk2.waitForSelector('.hero'); await desk2.waitForTimeout(3000);
+  check('instalar: no computador não aparece o aviso de celular', (await desk2.locator('.install').count()) === 0);
+}
+
 // ── computador e tablet
 {
   const desk = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
