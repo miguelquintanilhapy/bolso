@@ -855,3 +855,8 @@ input[type='date']::-webkit-calendar-picker-indicator, input[type='month']::-web
 .no-account p { margin: 0; color: var(--text-2); font-size: 14px; }
 .no-account .btn { margin-top: 4px; }
 .ios-alert-actions button:focus-visible { outline: none; background: rgba(120, 120, 128, 0.2); }
+
+/* nenhuma fonte monoespaçada: code, kbd e afins usam a fonte do app */
+code, kbd, pre, samp, tt { font-family: inherit; font-size: inherit; }
+code { font-weight: 600; letter-spacing: -0.01em; }
+kbd { font-size: 11px; }
