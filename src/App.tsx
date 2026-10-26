@@ -7,6 +7,7 @@ import { PrivacyProvider } from './ui/privacy';
 import { EditorProvider } from './ui/editors';
 import { ConfirmProvider } from './ui/confirm';
 import { Layout } from './ui/Layout';
+import { BrandLogo } from './ui/BrandLogo';
 import { Login } from './pages/Login';
 import { Home } from './pages/Home';
 import { Transactions } from './pages/Transactions';
@@ -34,7 +35,7 @@ export default function App() {
       </div>
     </div>
   );
-  if (user === undefined) return <div className="splash"><img className="brand-logo" src="/logo.png" alt="Bolso" /></div>;
+  if (user === undefined) return <div className="splash"><BrandLogo /></div>;
   if (!user) return <Login />;
 
   return (

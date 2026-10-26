@@ -1,3 +1,4 @@
+import { BrandLogo } from '../ui/BrandLogo';
 import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { db } from '../data';
@@ -40,7 +41,7 @@ export function Login() {
   return (
     <form className="login" onSubmit={submit}>
       <div>
-        <img className="brand-logo" src="/logo.png" alt="Bolso" width={152} height={52} />
+        <BrandLogo width={152} height={52} />
         <p className="sub">Seu controle financeiro, só seu.</p>
       </div>
       <div className="seg">
