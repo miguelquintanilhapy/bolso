@@ -648,9 +648,9 @@ small.muted, .item small { overflow-wrap: anywhere; }
 }
 
 /* ======================= padrões do iOS ======================= */
-:root { --sep: rgba(60, 60, 67, 0.16); --glass: rgba(255, 255, 255, 0.72); }
-:root[data-theme='dark'] { --bg: #000; --card: #1c1c1e; --card-2: #2c2c2e; --sep: rgba(84, 84, 88, 0.55); --glass: rgba(28, 28, 30, 0.72); --line: #2c2c2e; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --bg: #000; --card: #1c1c1e; --card-2: #2c2c2e; --sep: rgba(84, 84, 88, 0.55); --glass: rgba(28, 28, 30, 0.72); --line: #2c2c2e; } }
+:root { --sep: rgba(60, 60, 67, 0.16); --glass: rgba(255, 255, 255, 0.72); --alert-bg: rgba(250, 250, 252, 0.96); }
+:root[data-theme='dark'] { --bg: #000; --card: #1c1c1e; --card-2: #2c2c2e; --sep: rgba(84, 84, 88, 0.55); --glass: rgba(28, 28, 30, 0.72); --alert-bg: rgba(44, 44, 46, 0.97); --line: #2c2c2e; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --bg: #000; --card: #1c1c1e; --card-2: #2c2c2e; --sep: rgba(84, 84, 88, 0.55); --glass: rgba(28, 28, 30, 0.72); --alert-bg: rgba(44, 44, 46, 0.97); --line: #2c2c2e; } }
 
 /* lista agrupada: divisória fina que começa depois do ícone */
 .group .item + .item { border-top: 0; }
@@ -692,10 +692,9 @@ button, .nav, .item, .chip, .pills button { -webkit-user-select: none; user-sele
 .ios-alert-wrap { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 24px; background: rgba(0, 0, 0, 0.4); animation: fade-in 0.2s ease both; }
 .ios-alert-wrap.closing { animation: fade-out 0.18s ease both; }
 .ios-alert {
-  width: min(100%, 290px); border-radius: 22px; overflow: hidden; background: var(--glass); text-align: center;
+  width: min(100%, 290px); border-radius: 22px; overflow: hidden; background: var(--alert-bg); text-align: center;
   -webkit-backdrop-filter: saturate(180%) blur(30px); backdrop-filter: saturate(180%) blur(30px); animation: alert-in 0.3s var(--ease-spring) both;
 }
-:root:not([data-theme='dark']) .ios-alert { background: rgba(250, 250, 252, 0.88); }
 .ios-alert-body { padding: 20px 18px 18px; display: flex; flex-direction: column; gap: 4px; }
 .ios-alert-body h2 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
 .ios-alert-body p { font-size: 13.5px; color: var(--text-2); line-height: 1.35; }
@@ -851,3 +850,8 @@ input[type='date']::-webkit-calendar-picker-indicator, input[type='month']::-web
 .money-wrap .input { flex: 1; min-width: 0; }
 .sign-btn { width: 48px; min-height: 48px; border-radius: 16px; background: var(--card-2); font-weight: 700; font-size: 18px; flex: none; }
 .sign-btn[aria-pressed='true'] { background: var(--primary); color: var(--on-primary); }
+
+.no-account { background: var(--card); border-radius: var(--radius-sm); padding: 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; }
+.no-account p { margin: 0; color: var(--text-2); font-size: 14px; }
+.no-account .btn { margin-top: 4px; }
+.ios-alert-actions button:focus-visible { outline: none; background: rgba(120, 120, 128, 0.2); }
