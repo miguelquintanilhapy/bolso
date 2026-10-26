@@ -514,6 +514,32 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   await dctx.close();
 }
 
+// ── marca: ícones e logo seguem o modo claro/escuro do sistema
+{
+  const look = async (colorScheme, width) => {
+    const ctx = await browser.newContext({ viewport: { width, height: 800 }, colorScheme });
+    const pg = await ctx.newPage();
+    await pg.goto(`${url}/?demo`); await pg.waitForSelector('.hero'); await pg.waitForTimeout(400);
+    const r = await pg.evaluate(() => ({
+      apple: document.querySelector('link[rel="apple-touch-icon"]').getAttribute('href'),
+      visible: [...document.querySelectorAll('.nav-brand .brand-logo, .nav-brand .brand-mark')].filter((e) => getComputedStyle(e).display !== 'none').map((e) => e.className.split(' ').pop()),
+    }));
+    await ctx.close();
+    return r;
+  };
+  const claro = await look('light', 1280), escuro = await look('dark', 1280);
+  check('marca: claro mantém o ícone e a logo de sempre', claro.apple === '/apple-touch-icon.png' && claro.visible.join() === 'logo-light', JSON.stringify(claro));
+  check('marca: escuro troca para o ícone e a logo brancos', escuro.apple === '/apple-touch-icon-dark.png' && escuro.visible.join() === 'logo-dark', JSON.stringify(escuro));
+  check('marca: menu compacto usa a carteira branca no escuro', (await look('dark', 1100)).visible.join() === 'mark-dark' && (await look('light', 1100)).visible.join() === 'mark-light');
+  const head = await (await fetch(`${url}/`)).text();
+  check('marca: favicons claro e escuro declarados', /favicon-dark-32\.png[^>]*prefers-color-scheme: dark/.test(head) && /favicon-32\.png[^>]*prefers-color-scheme: light/.test(head));
+  const manifest = await (await fetch(`${url}/manifest.webmanifest`)).json();
+  check('marca: manifesto tem ícone monocromático e maskable próprio', manifest.icons.some((i) => i.purpose === 'monochrome') && manifest.icons.some((i) => i.purpose === 'maskable' && /maskable/.test(i.src)));
+  for (const f of ['apple-touch-icon-dark.png', 'favicon-dark-32.png', 'favicon-dark-64.png', 'favicon-dark.ico', 'logo-white.png', 'icon-monochrome-512.png']) {
+    check(`marca: ${f} é servido`, (await fetch(`${url}/${f}`)).ok);
+  }
+}
+
 // ── computador e tablet
 {
   const desk = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();

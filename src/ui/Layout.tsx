@@ -5,6 +5,7 @@ import { useStore } from '../store';
 import { useEditor } from './editors';
 import { getName } from '../lib/profile';
 import { SearchPalette, openSearch } from './SearchPalette';
+import { BrandLogo } from './BrandLogo';
 
 const items = [
   { to: '/', label: 'Início', icon: House, end: true },
@@ -122,7 +123,7 @@ export function Layout() {
       <div className="app"><div className="page" key={section}><Outlet /></div></div>
       {showFab && <button className="fab" onClick={() => newTx()} aria-label="Novo lançamento"><Plus size={26} /></button>}
       <nav className="nav" aria-label="Navegação principal" style={{ '--i': tabIndex(pathname) } as React.CSSProperties}>
-        <Link to="/" className="nav-brand" aria-label="Bolso, ir para o início"><img className="brand-logo" src="/logo.png" alt="Bolso" /><img className="brand-mark" src="/favicon-64.png" alt="" /></Link>
+        <Link to="/" className="nav-brand" aria-label="Bolso, ir para o início"><BrandLogo /><img className="brand-mark mark-light" src="/favicon-64.png" alt="" /><img className="brand-mark mark-dark" src="/favicon-dark-64.png" alt="" /></Link>
         <button className="nav-new" onClick={() => newTx()} aria-label="Novo lançamento"><Plus size={18} /><span className="lbl"> Novo lançamento</span> <kbd>N</kbd></button>
         <button className="nav-search" onClick={openSearch} aria-label="Buscar em tudo"><Search size={18} /><span className="lbl">Buscar</span> <kbd>Ctrl K</kbd></button>
         <div className="nav-items">

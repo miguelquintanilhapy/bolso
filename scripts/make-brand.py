@@ -1,10 +1,11 @@
-"""Gera os ativos de marca em public/ a partir de faviconbolso.png e logobolso.png (na raiz).
+"""Gera os ativos de marca em public/ a partir de faviconbolso.png, faviconbranco.png, logobolso.png e logo-branca-fundo-preto.png (na raiz).
 
   python3 scripts/make-brand.py
 
 - ícone do app / iPhone / PWA: carteira preta sobre fundo branco (o iOS pinta fundo transparente de preto)
 - favicon: mesma ideia, cantos arredondados, para ficar visível em abas claras e escuras
-- logo: preto com fundo transparente e recortada; no tema escuro o CSS inverte a cor
+- logo: preta com fundo transparente e recortada (logo.png); versão branca para o tema escuro (logo-white.png)
+- variantes escuras (ícone do iPhone, favicons e ícone monocromático do Android): carteira branca sobre fundo preto
 """
 from PIL import Image, ImageDraw, ImageChops
 
@@ -76,3 +77,49 @@ if font:
     d.text(((OG_W - tw) / 2, top + lg.height + gap - box[1]), tagline, font=font, fill=(104, 109, 118))
 og.save(f"{OUT}/og-image.png", optimize=True)
 print("og-image", og.size)
+
+
+# ---- logo branca (tema escuro): transparência derivada do claro (alpha = luminância) ----
+src_w = Image.open("logo-branca-fundo-preto.png").convert("L")
+alpha_w = src_w.point(lambda v: 0 if v < 12 else min(255, int((v - 12) * 255 / 243)))
+box_w = alpha_w.point(lambda v: 255 if v > 40 else 0).getbbox()
+box_w = (max(0, box_w[0] - pad), max(0, box_w[1] - pad), min(src_w.width, box_w[2] + pad), min(src_w.height, box_w[3] + pad))
+out_w = Image.new("RGBA", src_w.size, (255, 255, 255, 0))
+out_w.putalpha(alpha_w)
+out_w = out_w.crop(box_w)
+out_w.thumbnail((960, 960), Image.LANCZOS)
+out_w.save(f"{OUT}/logo-white.png", optimize=True)
+print("logo-white", out_w.size)
+
+# ---- variantes escuras do ícone: carteira branca (faviconbranco.png) sobre preto ----
+gw = Image.open("faviconbranco.png").convert("L")
+aw = gw.point(lambda v: 0 if v < 12 else min(255, int((v - 12) * 255 / 243)))
+white_glyph = Image.new("RGBA", gw.size, (255, 255, 255, 0))
+white_glyph.putalpha(aw)
+white_glyph = white_glyph.crop(aw.point(lambda v: 255 if v > 10 else 0).getbbox())
+
+
+def dark_icon(size, fill=0.56, radius=0.0, bg=(0, 0, 0, 255)):
+    canvas = Image.new("RGBA", (size, size), bg)
+    scale = size * fill / max(white_glyph.size)
+    g = white_glyph.resize((round(white_glyph.width * scale), round(white_glyph.height * scale)), Image.LANCZOS)
+    canvas.alpha_composite(g, ((size - g.width) // 2, (size - g.height) // 2))
+    if radius:
+        mask = Image.new("L", (size * 4, size * 4), 0)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, size * 4 - 1, size * 4 - 1), radius=int(size * 4 * radius), fill=255)
+        canvas.putalpha(mask.resize((size, size), Image.LANCZOS))
+    return canvas
+
+
+dark_icon(180).convert("RGB").save(f"{OUT}/apple-touch-icon-dark.png", optimize=True)
+dark_icon(32, fill=0.74, radius=0.22).save(f"{OUT}/favicon-dark-32.png", optimize=True)
+dark_icon(64, fill=0.74, radius=0.22).save(f"{OUT}/favicon-dark-64.png", optimize=True)
+dark_icon(256, fill=0.74, radius=0.22).save(f"{OUT}/favicon-dark.ico", sizes=[(16, 16), (32, 32), (48, 48)])
+
+# ícone monocromático (Android 13+ "ícones temáticos"): só a silhueta, o sistema pinta com a cor do tema
+mono = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+ms = 512 * 0.56 / max(white_glyph.size)
+mg = white_glyph.resize((round(white_glyph.width * ms), round(white_glyph.height * ms)), Image.LANCZOS)
+mono.alpha_composite(mg, ((512 - mg.width) // 2, (512 - mg.height) // 2))
+mono.save(f"{OUT}/icon-monochrome-512.png", optimize=True)
+print("variantes escuras ok")
