@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { db } from './data';
 import type { Table, SessionUser } from './data/api';
 import { DEFAULT_CATEGORIES } from './data/defaults';
+import { BrandLogo } from './ui/BrandLogo';
 import type { Account, AppNotification, Category, NewTransaction, Recurrence, Snapshot, Transaction } from './lib/types';
 import { planRecurrences } from './lib/recurrence';
 import { planNotifications } from './lib/alerts';
@@ -313,7 +314,7 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
     toasts, toast, dismissToast, signOut: async () => { await clearCache(); await db.signOut(); },
   };
 
-  if (!ready) return <div className="splash"><img className="brand-logo" src="/logo.png" alt="Bolso" /></div>;
+  if (!ready) return <div className="splash"><BrandLogo /></div>;
   if (error) return (
     <div className="splash">
       <div className="splash-error">
