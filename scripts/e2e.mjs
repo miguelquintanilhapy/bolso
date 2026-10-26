@@ -528,14 +528,23 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
     return r;
   };
   const claro = await look('light', 1280), escuro = await look('dark', 1280);
-  check('marca: claro mantém o ícone e a logo de sempre', claro.apple === '/apple-touch-icon.png' && claro.visible.join() === 'logo-light', JSON.stringify(claro));
-  check('marca: escuro troca para o ícone e a logo brancos', escuro.apple === '/apple-touch-icon-dark.png' && escuro.visible.join() === 'logo-dark', JSON.stringify(escuro));
+  check('marca: claro mantém a logo preta', claro.visible.join() === 'logo-light', JSON.stringify(claro));
+  check('marca: escuro troca para a logo branca', escuro.visible.join() === 'logo-dark', JSON.stringify(escuro));
+  check('marca: o ícone da tela de início é o mesmo em qualquer modo', claro.apple === '/apple-touch-icon.png' && escuro.apple === '/apple-touch-icon.png', JSON.stringify([claro.apple, escuro.apple]));
+  // o ícone: carteira branca (centro claro) sobre fundo preto (cantos escuros), em todos os tamanhos usados pelo app
+  const { PNG } = await import('pngjs');
+  const fs = await import('node:fs');
+  for (const f of ['apple-touch-icon', 'icon-192', 'icon-512', 'icon-maskable-512']) {
+    const png = PNG.sync.read(fs.readFileSync(new URL(`../public/${f}.png`, import.meta.url)));
+    const px = (x, y) => png.data[(y * png.width + x) * 4];
+    check(`marca: ${f}.png é carteira branca sobre fundo preto`, px(2, 2) < 20 && px(png.width - 3, png.height - 3) < 20 && Math.max(...[0.42, 0.5, 0.58].map((k) => px(Math.round(png.width * k), Math.round(png.height * 0.55)))) > 235, f);
+  }
   check('marca: menu compacto usa a carteira branca no escuro', (await look('dark', 1100)).visible.join() === 'mark-dark' && (await look('light', 1100)).visible.join() === 'mark-light');
   const head = await (await fetch(`${url}/`)).text();
   check('marca: favicons claro e escuro declarados', /favicon-dark-32\.png[^>]*prefers-color-scheme: dark/.test(head) && /favicon-32\.png[^>]*prefers-color-scheme: light/.test(head));
   const manifest = await (await fetch(`${url}/manifest.webmanifest`)).json();
   check('marca: manifesto tem ícone monocromático e maskable próprio', manifest.icons.some((i) => i.purpose === 'monochrome') && manifest.icons.some((i) => i.purpose === 'maskable' && /maskable/.test(i.src)));
-  for (const f of ['apple-touch-icon-dark.png', 'favicon-dark-32.png', 'favicon-dark-64.png', 'favicon-dark.ico', 'logo-white.png', 'icon-monochrome-512.png']) {
+  for (const f of ['favicon-dark-32.png', 'favicon-dark-64.png', 'favicon-dark.ico', 'logo-white.png', 'icon-monochrome-512.png']) {
     check(`marca: ${f} é servido`, (await fetch(`${url}/${f}`)).ok);
   }
 }
