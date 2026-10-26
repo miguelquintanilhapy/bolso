@@ -581,6 +581,43 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   await bctx.close();
 }
 
+// ── sincronização incremental: a segunda abertura baixa só o que mudou
+{
+  const sctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'pt-BR', reducedMotion: 'reduce' });
+  const sp = await sctx.newPage();
+  await sp.goto(`${url}/?demo`); await sp.waitForSelector('.hero');
+  const firstStats = await sp.evaluate(() => window.__dbStats);
+  check('sincronização: a primeira abertura baixa tudo (carga completa)', firstStats.listRows > 20 && firstStats.changeRows === 0, JSON.stringify(firstStats));
+  await sp.waitForTimeout(1500); // a cópia local é gravada logo depois
+  // simula "outro aparelho": a base antiga fica velha; só uma alteração, uma inclusão e uma exclusão são recentes
+  const ids = await sp.evaluate(() => {
+    const st = JSON.parse(localStorage.getItem('bolso:demo:v1'));
+    const old = new Date(Date.now() - 2 * 864e5).toISOString(), recent = new Date(Date.now() + 2000).toISOString();
+    for (const t of ['accounts', 'categories', 'transactions', 'recurrences', 'notifications', 'investment_snapshots']) for (const r of st[t]) r.updated_at = old;
+    const exp = st.transactions.filter((t) => t.kind === 'expense');
+    const edited = st.transactions.find((t) => t.description === 'Padaria'), removed = st.transactions.find((t) => t.description === 'Dentista');
+    edited.amount = 777.77; edited.updated_at = recent;
+    st.transactions = st.transactions.filter((t) => t.id !== removed.id);
+    st.deleted_rows.push({ tbl: 'transactions', id: removed.id, deleted_at: recent });
+    const added = { ...exp[2], id: crypto.randomUUID(), description: 'Compra de outro aparelho', amount: 31.31, updated_at: recent };
+    st.transactions.push(added);
+    localStorage.setItem('bolso:demo:v1', JSON.stringify(st));
+    return { edited: edited.description, removed: removed.description };
+  });
+  await sp.reload(); await sp.waitForSelector('.hero');
+  await sp.waitForTimeout(800);
+  const st2 = await sp.evaluate(() => window.__dbStats);
+  check('sincronização: a segunda abertura não baixa a lista inteira', st2.listRows === 0, JSON.stringify(st2));
+  check('sincronização: só as linhas que mudaram vêm do servidor (≤ 3)', st2.changeRows > 0 && st2.changeRows <= 3, JSON.stringify(st2));
+  await sp.click('nav a:has-text("Extrato")'); await sp.waitForSelector('.swipe');
+  await sp.click('button:has-text("Filtros")'); await sp.check('input[type=checkbox]'); await sp.waitForTimeout(300);
+  const body = await sp.locator('.screen').innerText();
+  check('sincronização: lançamento novo de outro aparelho apareceu', /Compra de outro aparelho/.test(body));
+  check('sincronização: alteração de outro aparelho apareceu (R$ 777,77)', /777,77/.test(body));
+  check('sincronização: exclusão feita em outro aparelho sumiu da lista', !/Dentista/.test(body) && ids.removed === 'Dentista', ids.removed);
+  await sctx.close();
+}
+
 // ── computador e tablet
 {
   const desk = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();

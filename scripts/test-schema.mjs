@@ -40,5 +40,21 @@ await db.exec(`insert into notifications (kind, title, dedupe_key) values ('x', 
 check('notificação com mesma chave é única', await rejects(`insert into notifications (kind, title, dedupe_key) values ('x', 'y', 'k1')`));
 check('ping() responde', (await db.query('select public.ping() as t')).rows[0].t != null);
 
+// sincronização incremental: updated_at muda a cada alteração e exclusões ficam registradas
+const stamp = async () => (await db.query(`select updated_at from accounts where id = '${a}'`)).rows[0].updated_at.getTime();
+const t1 = await stamp();
+await new Promise((r) => setTimeout(r, 15));
+await db.exec(`update accounts set name = 'Conta 2' where id = '${a}'`);
+check('updated_at avança quando a linha muda', (await stamp()) > t1);
+await db.exec(`update accounts set updated_at = '2000-01-01' where id = '${a}'`);
+check('updated_at não pode ser falsificado', (await stamp()) > Date.parse('2020-01-01'));
+await db.exec(`delete from transactions where account_id = '${b}'`);
+await db.exec(`insert into transactions (kind, amount, date, account_id) values ('expense', 1, '2026-10-03', '${b}')`);
+const doomed = (await db.query(`select id from transactions where account_id = '${b}'`)).rows[0].id;
+await db.exec(`delete from accounts where id = '${b}'`); // exclui em cascata o lançamento do cartão
+const tomb = (await db.query(`select tbl, id from deleted_rows`)).rows;
+check('exclusão da conta fica registrada', tomb.some((r) => r.tbl === 'accounts' && r.id === b));
+check('exclusão em cascata também fica registrada', tomb.some((r) => r.tbl === 'transactions' && r.id === doomed));
+
 console.log(failures ? `\n${failures} falha(s)` : '\nschema OK');
 process.exit(failures ? 1 : 0);
