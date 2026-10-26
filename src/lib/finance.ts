@@ -2,6 +2,9 @@ import type { Account, Category, NewTransaction, Snapshot, Transaction } from '.
 import { addDays, addMonthsToDate, addMonthsToMonth, dateInMonth, endOfMonth, monthOf, monthRange } from './dates';
 import { round2 } from './money';
 
+/** Ordem das listas: dia mais recente primeiro e, dentro do dia, o último lançado em cima. */
+export const newestFirst = (a: Transaction, b: Transaction) => b.date.localeCompare(a.date) || (b.created_at ?? '').localeCompare(a.created_at ?? '');
+
 /** Conta no saldo: pago e já ocorrido (não pendente, não futuro). */
 export const isEffective = (t: Transaction, asOf: string) => t.status === 'paid' && t.date <= asOf;
 
@@ -148,7 +151,7 @@ export function buildInvoice(card: Account, txs: Transaction[], month: string): 
     remaining: round2(Math.max(0, total - paid)),
     dueDate: invoiceDueDate(month, closing, due),
     closingDate: dateInMonth(month, closing),
-    txs: own.sort((a, b) => b.date.localeCompare(a.date)),
+    txs: own.sort(newestFirst),
   };
 }
 

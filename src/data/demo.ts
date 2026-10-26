@@ -13,6 +13,14 @@ function load(): Store {
   }
 }
 
+// mesma regra do gatilho do banco: a conta só aceita as categorias escolhidas para ela
+function checkCategory(store: Store, row: Record<string, unknown>) {
+  if (row.category_id == null) return;
+  const acc = store.accounts.find((a) => a.id === row.account_id);
+  const allowed = acc?.allowed_category_ids as string[] | null | undefined;
+  if (allowed?.length && !allowed.includes(row.category_id as string)) throw new Error('Esta conta só aceita as categorias escolhidas para ela.');
+}
+
 /** Atraso artificial por chamada (ms), só para testar lentidão de rede: localStorage['bolso:demo-latency']. */
 const lag = () => {
   const ms = Number(localStorage.getItem('bolso:demo-latency') ?? 0);
@@ -48,6 +56,7 @@ export function createDemoDb(): Db {
           store[table].some((x) => cols.every((c) => x[c] === r[c]))) continue;
         const row: Record<string, unknown> = { id: crypto.randomUUID(), created_at: new Date().toISOString(), ...r };
         if (table === 'notifications') row.read = row.read ?? false;
+        if (table === 'transactions') checkCategory(store, row);
         store[table].push(row);
         created.push(row);
       }
@@ -58,6 +67,10 @@ export function createDemoDb(): Db {
       await lag();
       const row = store[table].find((r) => r.id === id);
       if (!row) throw new Error('Registro não encontrado');
+      if (table === 'transactions') {
+        const next = { ...row, ...patch };
+        if (next.category_id !== row.category_id || next.account_id !== row.account_id) checkCategory(store, next);
+      }
       Object.assign(row, patch);
       persist();
       return structuredClone(row) as T;

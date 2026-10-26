@@ -13,6 +13,8 @@ export interface Account {
   color: string;
   is_default: boolean;
   archived: boolean;
+  /** Categorias que essa conta/cartão aceita; vazio ou ausente = todas. */
+  allowed_category_ids?: string[] | null;
 }
 
 export interface Category {
@@ -44,6 +46,8 @@ export interface Transaction {
   recurrence_id: string | null;
   ref_month: string | null;
   invoice_ref: string | null;
+  /** Quando foi lançado (preenchido pelo banco); desempata a ordem dentro do mesmo dia. */
+  created_at?: string;
 }
 
 export interface Recurrence {
