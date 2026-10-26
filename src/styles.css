@@ -847,3 +847,7 @@ input[type='date']::-webkit-calendar-picker-indicator, input[type='month']::-web
 }
 .item .main small.amber, .item small.amber { color: var(--amber); font-weight: 600; }
 .item .main small.green { color: var(--green); font-weight: 600; }
+.money-wrap { display: flex; gap: 8px; align-items: stretch; }
+.money-wrap .input { flex: 1; min-width: 0; }
+.sign-btn { width: 48px; min-height: 48px; border-radius: 16px; background: var(--card-2); font-weight: 700; font-size: 18px; flex: none; }
+.sign-btn[aria-pressed='true'] { background: var(--primary); color: var(--on-primary); }

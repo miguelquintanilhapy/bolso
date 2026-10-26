@@ -71,3 +71,27 @@ export const amountError = (raw: string): string => {
   const r = checkAmount(raw);
   return 'message' in r ? r.message : '';
 };
+
+// ───────── campo de valor no estilo dos bancos: os dígitos entram pela direita (1 → 0,01 · 10 → 0,10 · 100 → 1,00) ─────────
+
+/** Dígitos digitados → valor no formato "1234,56" (vazio quando é zero). `null` se passar do limite. */
+export function typedToValue(raw: string, prev: string, allowNegative = false): string | null {
+  const digits = raw.replace(/\D/g, '').replace(/^0+/, '');
+  if (digits.length > 11) return null; // 999.999.999,99
+  // um "-" no texto = negativo; digitar outro "-" (ou apagar o que existe) volta para positivo
+  const neg = allowNegative && (raw.match(/-/g) ?? []).length === 1;
+  void prev;
+  if (!digits) return '';
+  const cents = digits.padStart(3, '0');
+  return `${neg ? '-' : ''}${cents.slice(0, -2)},${cents.slice(-2)}`;
+}
+
+/** Valor guardado ("1234,5") → texto do campo ("1.234,50"). */
+export function valueToDisplay(value: string): string {
+  if (!value) return '';
+  const neg = value.startsWith('-');
+  const n = Number(value.replace('-', '').replace(',', '.'));
+  if (!Number.isFinite(n) || n === 0) return '';
+  const cents = Math.round(n * 100);
+  return `${neg ? '-' : ''}${Math.floor(cents / 100).toLocaleString('pt-BR')},${String(cents % 100).padStart(2, '0')}`;
+}
