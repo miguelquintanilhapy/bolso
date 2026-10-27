@@ -596,7 +596,7 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   check('extrato: no mesmo dia, o último lançado fica em cima', /uber/i.test(hoje[0] ?? '') && /mercado/i.test(hoje[1] ?? '') && hoje.findIndex((t) => /Padaria/.test(t)) > 1, hoje.map((t) => t.split('\n')[0]).join(' | '));
   check('horário: cada lançamento mostra a hora em que foi feito', /\b\d{2}:\d{2}\b/.test(hoje[0] ?? '') && /\b\d{2}:\d{2}\b/.test(hoje[1] ?? ''), hoje[0]);
   await rp.click('.list > .list:has(.day-label:has-text("Hoje")) > .swipe >> nth=0 >> .item'); await rp.waitForSelector('.sheet');
-  check('horário: o formulário informa "Lançado em dd/mm/aaaa às hh:mm"', /Lançado em \d{2}\/\d{2}\/\d{4} às \d{2}:\d{2}/.test(await rp.locator('.sheet .launched').innerText().catch(() => '')));
+  check('horário: o formulário informa "Registrado em dd/mm/aaaa às hh:mm"', /Registrado em \d{2}\/\d{2}\/\d{4} às \d{2}:\d{2}/.test(await rp.locator('.sheet .launched').innerText().catch(() => '')));
   await esc(rp);
   const homeRows = await (async () => { await go('/'); await rp.waitForSelector('.hero'); return rp.locator('.list > .list:has(.day-label:has-text("Hoje")) > .swipe').allInnerTexts(); })();
   check('início: a lista de últimos lançamentos também mostra o mais recente em cima', /uber/i.test(homeRows[0] ?? ''), homeRows.map((t) => t.split('\n')[0]).join(' | '));
@@ -640,6 +640,62 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   await go('/contas'); await rp.waitForSelector('.item:has-text("Swile")');
   check('categorias por conta: desligar o limite volta a aceitar todas', !/Só aceita:/.test(await rp.locator('.screen').innerText()));
   await rctx.close();
+}
+
+// ── horário editável e notificações
+{
+  const hctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'pt-BR', reducedMotion: 'reduce' });
+  const hp = await hctx.newPage();
+  await hp.goto(`${url}/?demo`); await hp.waitForSelector('.hero');
+  const go = (path) => hp.evaluate((x) => { history.pushState({}, '', x); dispatchEvent(new PopStateEvent('popstate')); }, path);
+  // lançar com a hora real digitada (como quem cadastra tudo no fim do dia)
+  await hp.click('.action:has-text("Despesa")'); await hp.waitForSelector('.sheet');
+  await money(hp, '.amount-input', '12,34');
+  await hp.fill('.sheet input[placeholder="Ex.: Mercado"]', 'Almoço de ontem');
+  await hp.fill('input[aria-label="Horário do lançamento"]', '0001');
+  check('horário: a máscara coloca os dois pontos (0001 → 00:01)', (await hp.inputValue('input[aria-label="Horário do lançamento"]')) === '00:01');
+  check('horário: o formulário explica o que acontece em branco', /Em branco|Hora em que aconteceu/.test(await hp.locator('.sheet .field:has(.lbl:has-text("Horário")) .field-hint').innerText()));
+  await hp.fill('input[aria-label="Horário do lançamento"]', '9999');
+  await hp.click('.sheet .foot-actions .btn.primary');
+  check('horário: hora impossível é recusada com aviso claro', /Horário inválido/.test(await hp.locator('.sheet .field-error').innerText().catch(() => '')));
+  await hp.fill('input[aria-label="Horário do lançamento"]', '0001');
+  await hp.click('.sheet .foot-actions .btn.primary'); await hp.waitForSelector('.sheet', { state: 'detached' });
+  // outro lançamento SEM hora: vale a hora do registro
+  await hp.fill('input[aria-label="Lançamento rápido"]', '7 mercado'); await hp.press('input[aria-label="Lançamento rápido"]', 'Enter'); await hp.waitForSelector('.toast:has-text("Alimentação")');
+  await hp.waitForTimeout(300);
+  await go('/lancamentos'); await hp.waitForSelector('.swipe');
+  const rows = await hp.locator('.list > .list:has(.day-label:has-text("Hoje")) > .swipe').allInnerTexts();
+  const iReg = rows.findIndex((t) => /mercado/i.test(t)), iTyped = rows.findIndex((t) => /Almoço de ontem/.test(t));
+  check('horário: o lançamento sem hora mostra a hora do registro (marcada "reg.")', iReg >= 0 && /reg\. \d{2}:\d{2}/.test(rows[iReg]), rows[iReg]);
+  check('horário: o lançamento com hora digitada mostra a hora dele', iTyped >= 0 && /\b00:01\b/.test(rows[iTyped]) && !/reg\./.test(rows[iTyped]), rows[iTyped]);
+  check('horário: a ordem do dia segue a hora (00:01 fica abaixo do registrado agora)', iReg >= 0 && iTyped > iReg, `${iReg} / ${iTyped}`);
+  await hp.click(`.list > .list:has(.day-label:has-text("Hoje")) > .swipe >> nth=${iTyped} >> .item`); await hp.waitForSelector('.sheet');
+  check('horário: ao reabrir, a hora digitada vem preenchida e o registro aparece junto', (await hp.inputValue('input[aria-label="Horário do lançamento"]')) === '00:01' && /Horário informado: 00:01 · Registrado em/.test(await hp.locator('.sheet .launched').innerText()));
+  await esc(hp);
+
+  // notificações: abrir a tela por qualquer botão tira o ponto vermelho; dá para excluir e desfazer
+  await go('/'); await hp.waitForSelector('.hero');
+  const before = await hp.locator('a[aria-label^="Notificações"] .dot').count();
+  check('notificações: o sino mostra avisos não vistos', before === 1);
+  await hp.click('a[aria-label^="Notificações"]'); await hp.waitForSelector('.item.notif');
+  check('notificações: ao abrir, os novos aparecem destacados', (await hp.locator('.item.notif.unread').count()) > 0);
+  await hp.waitForTimeout(1800);
+  await hp.click('a.back'); await hp.waitForSelector('.hero');
+  check('notificações: depois de abrir pelo sino, o ponto vermelho some', (await hp.locator('a[aria-label^="Notificações"] .dot').count()) === 0);
+  await go('/mais'); await hp.waitForSelector('.page-title:has-text("Mais")');
+  check('notificações: "Mais" também não mostra mais "novas"', !/\bnovas?\b/.test(await hp.locator('.item:has-text("Notificações")').innerText()));
+  await go('/notificacoes'); await hp.waitForSelector('.item.notif');
+  const total = await hp.locator('.item.notif').count();
+  await hp.click('.item.notif >> nth=0 >> button.trash');
+  check('notificações: excluir tira o aviso da lista', (await hp.locator('.item.notif').count()) === total - 1);
+  await hp.click('.toast button:has-text("Desfazer")'); await hp.waitForTimeout(400);
+  check('notificações: desfazer devolve o aviso', (await hp.locator('.item.notif').count()) === total);
+  await hp.click('button:has-text("Limpar todas")'); await hp.waitForTimeout(400);
+  check('notificações: "Limpar todas" esvazia a lista', (await hp.locator('.item.notif').count()) === 0 && /Tudo em dia/.test(await hp.locator('.screen').innerText()));
+  await go('/'); await hp.reload(); await hp.waitForSelector('.hero'); await hp.waitForTimeout(1500);
+  await go('/notificacoes');
+  check('notificações: os excluídos não voltam depois de reabrir o app', (await hp.locator('.item.notif').count()) === 0);
+  await hctx.close();
 }
 
 // ── computador e tablet

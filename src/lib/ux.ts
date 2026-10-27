@@ -103,15 +103,4 @@ export function pendingWhen(income: boolean, date: string, today: string): { tex
   return { text: /^\d/.test(label) ? `Vence em ${label}` : `Vence ${label.toLowerCase()} · ${dm}`, tone: '' };
 }
 
-const p2 = (n: number) => String(n).padStart(2, '0');
-
-/** Quando a pessoa registrou o lançamento (hora local). `null` para o que foi criado sozinho (recorrência) ou sem horário guardado. */
-export function launchInfo(tx: { created_at?: string; date: string; recurrence_id?: string | null }) {
-  if (!tx.created_at || tx.recurrence_id) return null;
-  const d = new Date(tx.created_at);
-  if (Number.isNaN(d.getTime())) return null;
-  const ymd = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
-  const time = `${p2(d.getHours())}:${p2(d.getMinutes())}`;
-  const dm = `${p2(d.getDate())}/${p2(d.getMonth() + 1)}`;
-  return { time, dm, ymd, sameDay: ymd === tx.date, full: `${dm}/${d.getFullYear()} às ${time}`, csv: `${ymd} ${time}` };
-}
+export { launchInfo } from './launch';

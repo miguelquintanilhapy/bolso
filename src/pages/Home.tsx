@@ -67,7 +67,7 @@ export function Home() {
   const fc = useMemo(() => forecast(s.accounts, s.transactions, s.investment_snapshots, s.today), [s.accounts, s.transactions, s.investment_snapshots, s.today]);
   const sum = useMemo(() => monthSummary(s.transactions, monthOf(s.today)), [s.transactions, s.today]);
   const soon = useMemo(() => collapseOverdue(upcoming(s.accounts, s.transactions, s.today, 7), s.today), [s.accounts, s.transactions, s.today]);
-  const unread = s.notifications.filter((n) => !n.read).length;
+  const unread = s.notifications.filter((n) => !n.read && !n.dismissed).length;
   const recent = useMemo(
     () => [...s.transactions].filter((t) => t.date <= s.today).sort(newestFirst).slice(0, 8),
     [s.transactions, s.today],

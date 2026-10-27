@@ -23,7 +23,7 @@ export function More() {
   const [theme, setTheme] = useState<Theme>(() => {
     try { return (localStorage.getItem(THEME_KEY) as Theme) || 'auto'; } catch { return 'auto'; }
   });
-  const unread = s.notifications.filter((n) => !n.read).length;
+  const unread = s.notifications.filter((n) => !n.read && !n.dismissed).length;
   const [name, setNameState] = useState(() => getName(s.user.email));
   const [editName, setEditName] = useState(false);
   const [draft, setDraft] = useState('');

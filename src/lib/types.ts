@@ -46,8 +46,10 @@ export interface Transaction {
   recurrence_id: string | null;
   ref_month: string | null;
   invoice_ref: string | null;
-  /** Quando foi lançado (preenchido pelo banco); desempata a ordem dentro do mesmo dia. */
+  /** Quando foi lançado (preenchido pelo banco). */
   created_at?: string;
+  /** Hora em que a coisa aconteceu ("14:32"), informada pela pessoa; vazio = vale a hora do registro. */
+  occurred_time?: string | null;
 }
 
 export interface Recurrence {
@@ -73,6 +75,8 @@ export interface AppNotification {
   link: string | null;
   dedupe_key: string;
   read: boolean;
+  /** Excluída pela pessoa: some da lista, mas continua guardada para o aviso não voltar. */
+  dismissed?: boolean;
   created_at: string;
 }
 

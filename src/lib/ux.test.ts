@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { collapseOverdue, findDuplicate, launchInfo, pendingWhen, previewEffect, suggestDescriptions } from './ux';
+import { effectiveTime, sortTime, validTime } from './launch';
+import { newestFirst } from './finance';
+import { maskTime } from '../ui/TimeInput';
 import type { Account, NewTransaction, Transaction } from './types';
 
 const acc = (id: string, kind: Account['kind'], initial = 0): Account => ({ id, name: id, kind, initial_balance: initial, closing_day: 10, due_day: 17, credit_limit: null, color: '#000', is_default: false, archived: false } as unknown as Account);
@@ -98,5 +101,34 @@ describe('launchInfo (horário do lançamento)', () => {
     expect(launchInfo({ created_at: at(2026, 10, 26, 8, 0), date: '2026-10-26', recurrence_id: 'r' })).toBeNull();
     expect(launchInfo({ date: '2026-10-26' })).toBeNull();
     expect(launchInfo({ created_at: 'lixo', date: '2026-10-26' })).toBeNull();
+  });
+});
+
+describe('horário informado x horário do registro', () => {
+  const at = (h: number, mi: number) => new Date(2026, 9, 26, h, mi).toISOString();
+  const tx = (id: string, o: Record<string, unknown>) => ({ id, date: '2026-10-26', ...o }) as never;
+  it('effectiveTime: o informado vence; sem ele vale o do registro', () => {
+    expect(effectiveTime({ date: '2026-10-26', occurred_time: '09:15', created_at: at(21, 40) })).toEqual({ time: '09:15', typed: true });
+    expect(effectiveTime({ date: '2026-10-26', created_at: at(21, 40) })).toEqual({ time: '21:40', typed: false });
+    expect(effectiveTime({ date: '2026-10-26' })).toBeNull();
+  });
+  it('ordena pela hora real quando informada; sem ela, pela hora do registro', () => {
+    const list = [tx('manha', { occurred_time: '09:15', created_at: at(21, 40) }), tx('tarde', { occurred_time: '15:00', created_at: at(21, 41) }), tx('semHora', { created_at: at(18, 0) })];
+    expect([...list].sort(newestFirst).map((x: { id: string }) => x.id)).toEqual(['semHora', 'tarde', 'manha']);
+  });
+  it('registrado em outro dia e sem hora informada fica no começo do dia', () => {
+    const outro = tx('outro', { date: '2026-10-25', created_at: at(21, 0) });
+    const com = tx('com', { date: '2026-10-25', occurred_time: '08:00', created_at: at(21, 0) });
+    expect(sortTime(outro)).toBe('00:00');
+    expect([outro, com].sort(newestFirst).map((x: { id: string }) => x.id)).toEqual(['com', 'outro']);
+  });
+  it('validTime e a máscara', () => {
+    expect(['00:00', '09:05', '23:59'].every(validTime)).toBe(true);
+    expect(['24:00', '12:60', '1:30', '', '12:3', 'ab:cd'].some(validTime)).toBe(false);
+    expect(maskTime('1432')).toBe('14:32');
+    expect(maskTime('14')).toBe('14');
+    expect(maskTime('143')).toBe('14:3');
+    expect(maskTime('14:32:99')).toBe('14:32');
+    expect(maskTime('a1b4c3d2')).toBe('14:32');
   });
 });

@@ -1,9 +1,11 @@
 import type { Account, Category, NewTransaction, Snapshot, Transaction } from './types';
 import { addDays, addMonthsToDate, addMonthsToMonth, dateInMonth, endOfMonth, monthOf, monthRange } from './dates';
 import { round2 } from './money';
+import { sortTime } from './launch';
 
-/** Ordem das listas: dia mais recente primeiro e, dentro do dia, o último lançado em cima. */
-export const newestFirst = (a: Transaction, b: Transaction) => b.date.localeCompare(a.date) || (b.created_at ?? '').localeCompare(a.created_at ?? '');
+/** Ordem das listas: dia mais recente primeiro e, dentro do dia, a hora mais tarde em cima (a informada pela pessoa ou, sem ela, a do registro). */
+export const newestFirst = (a: Transaction, b: Transaction) =>
+  b.date.localeCompare(a.date) || sortTime(b).localeCompare(sortTime(a)) || (b.created_at ?? '').localeCompare(a.created_at ?? '');
 
 /** Conta no saldo: pago e já ocorrido (não pendente, não futuro). */
 export const isEffective = (t: Transaction, asOf: string) => t.status === 'paid' && t.date <= asOf;

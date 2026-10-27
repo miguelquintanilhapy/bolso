@@ -5,6 +5,8 @@ import { Sheet, SheetClosing } from './Sheet';
 import { useConfirm } from './confirm';
 import { Segmented, Switch } from './common';
 import { MoneyInput } from './MoneyInput';
+import { TimeInput } from './TimeInput';
+import { effectiveTime, launchInfo, validTime } from '../lib/launch';
 import { CATEGORY_ICONS, CategoryIcon, COLORS } from './icons';
 import type { Account, AccountKind, Category, NewTransaction, Recurrence, Snapshot, Transaction, TxKind } from '../lib/types';
 import { accountBalance, buildInstallments, buildInvoice, cardOverview, invoiceMonths } from '../lib/finance';
@@ -12,7 +14,7 @@ import { amountError, formatBRL, parseAmount, round2 } from '../lib/money';
 import { addDays, monthLabel, monthOf } from '../lib/dates';
 import { norm } from '../lib/quickEntry';
 import { allowedCategories, categoryAllowed, isRestricted, restrictionText } from '../lib/categoryRules';
-import { findDuplicate, getLastUsed, launchInfo, previewEffect, setLastUsed, suggestDescriptions } from '../lib/ux';
+import { findDuplicate, getLastUsed, previewEffect, setLastUsed, suggestDescriptions } from '../lib/ux';
 
 export type TxInit = Partial<{
   kind: TxKind; amount: number; description: string; category_id: string | null; account_id: string; to_account_id: string | null;
@@ -137,11 +139,12 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
   const [tags, setTags] = useState<string[]>(existing?.tags ?? init?.tags ?? []);
   const [tagInput, setTagInput] = useState('');
   const [notes, setNotes] = useState(existing?.notes ?? '');
+  const [time, setTime] = useState(existing?.occurred_time ?? '');
   const [invoiceRef, setInvoiceRef] = useState<string | null>(existing?.invoice_ref ?? init?.invoice_ref ?? null);
   const [learn] = useState(init?.keyword ?? null);
   const [error, setError] = useState('');
   const [shake, setShake] = useState(0);
-  const [errField, setErrField] = useState<'amount' | 'to' | 'category' | null>(null);
+  const [errField, setErrField] = useState<'amount' | 'to' | 'category' | 'time' | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const confirm = useConfirm();
@@ -170,7 +173,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
   const yesterday = addDays(s.today, -1);
   const dateMode: DateMode = showDate ? 'other' : date === s.today ? 'today' : date === yesterday ? 'yest' : 'other';
 
-  const fail = (msg: string, field: 'amount' | 'to' | 'category' | null = null) => { setError(msg); setErrField(field); setShake((n) => n + 1); };
+  const fail = (msg: string, field: 'amount' | 'to' | 'category' | 'time' | null = null) => { setError(msg); setErrField(field); setShake((n) => n + 1); };
 
   const addTag = () => {
     const t = norm(tagInput.replace(/^#/, '').trim());
@@ -195,6 +198,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
   const submit = async () => {
     if (sending.current) return;
     if (!value) return fail(amountError(amount), 'amount');
+    if (time && !validTime(time)) return fail('Horário inválido. Use hora e minutos, por exemplo 14:32 (ou deixe em branco).', 'time');
     if (installments > 1 && value / installments < 0.01) return fail(`Valor pequeno demais para ${installments} parcelas (mínimo de R$ 0,01 cada).`);
     if (!accountId) return fail('Você ainda não tem conta. Toque em “Criar conta agora” no topo.');
     if (kind !== 'transfer' && account && !existing && restricted && !categoryId) return fail(`Escolha uma categoria. ${restrictionText(account, s.categories)}`, 'category');
@@ -218,6 +222,8 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
         category_id: kind === 'transfer' ? null : categoryId, installment_group: null, installment_number: null,
         installment_total: null, recurrence_id: null, ref_month: null,
         invoice_ref: kind === 'transfer' && toAccount?.kind === 'credit' ? invoiceRef : null,
+        // só envia quando há o que guardar (quem nunca usa o horário não depende da atualização do banco)
+        ...(time ? { occurred_time: time } : existing?.occurred_time ? { occurred_time: null } : {}),
       };
       if (existing) {
         await s.save<Transaction>('transactions', { id: existing.id, ...base, recurrence_id: existing.recurrence_id, ref_month: existing.ref_month,
@@ -239,7 +245,8 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
       setSaved(true);
       setTimeout(onClose, 380);
     } catch (e) {
-      fail(e instanceof Error ? e.message : 'Não consegui salvar.');
+      const msg = e instanceof Error ? e.message : 'Não consegui salvar.';
+      fail(/occurred_time/.test(msg) ? 'Para guardar o horário, rode o arquivo supabase/schema.sql de novo no Supabase (passo a passo em docs/SETUP.md) e tente de novo.' : msg);
       sending.current = false;
       setBusy(false);
     }
@@ -271,7 +278,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
   const onEnter = (e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); void submit(); } };
 
   useEffect(() => { if (categoryId && !categoryAllowed(account, categoryId) && categoryId !== existing?.category_id) setCategoryId(null); }, [accountId]); // eslint-disable-line react-hooks/exhaustive-deps
-  const guardedClose = useGuardedClose(onClose, { kind, amount, description, categoryId, accountId, toId, date, status, installments, tags, tagInput, notes });
+  const guardedClose = useGuardedClose(onClose, { kind, amount, description, categoryId, accountId, toId, date, status, installments, tags, tagInput, notes, time });
   const hints = existing || kind === 'transfer' ? [] : suggestDescriptions(s.transactions, kind, description);
   const effect = !value ? [] : previewEffect({
     base: {
@@ -402,6 +409,15 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
         {dateMode === 'other' && <input className="input" type="date" value={date} onChange={(e) => e.target.value && onDate(e.target.value)} aria-label="Data do lançamento" />}
       </Field>
 
+      <Field label="Horário" optional error={errField === 'time' ? error : undefined}
+        hint={time ? 'Hora em que aconteceu.' : existing ? (launchInfo(existing) ? `Em branco: vale a hora do registro (${launchInfo(existing)!.time}).` : 'Em branco: sem horário.') : 'Em branco: vale a hora em que você salvar. Preencha se estiver lançando depois.'}>
+        <div className="tag-add">
+          <TimeInput className="input" value={time} onChange={setTime} aria-label="Horário do lançamento" />
+          <button type="button" className="btn sm" onClick={() => { const d = new Date(); setTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`); }}>Agora</button>
+          {time && <button type="button" className="btn sm" onClick={() => setTime('')} aria-label="Limpar horário">Limpar</button>}
+        </div>
+      </Field>
+
       {!(isCard && kind !== 'transfer') && (
         <Field label={kind === 'income' ? 'Recebimento' : kind === 'transfer' ? 'Transferência' : 'Pagamento'}>
           <Segmented value={status} onChange={(v) => { setStatus(v); setStatusTouched(true); }}
@@ -424,7 +440,7 @@ function TxEditor({ id, init, onClose }: { id?: string; init?: TxInit; onClose: 
         </Field>
       )}
       {existing?.installment_total ? <p className="muted">Parcela {existing.installment_number} de {existing.installment_total}</p> : null}
-      {existing && (launchInfo(existing) ? <p className="muted launched">Lançado em {launchInfo(existing)!.full}</p> : existing.recurrence_id ? <p className="muted launched">Criado automaticamente pela recorrência</p> : null)}
+      {existing && (launchInfo(existing) ? <p className="muted launched">{effectiveTime(existing)?.typed ? `Horário informado: ${existing.occurred_time} · ` : ''}Registrado em {launchInfo(existing)!.full}</p> : existing.recurrence_id ? <p className="muted launched">Criado automaticamente pela recorrência</p> : null)}
 
       <Field label="Tags" optional hint="Para agrupar gastos, ex.: viagem, mae. Toque em + para adicionar.">
         <div className="chips">

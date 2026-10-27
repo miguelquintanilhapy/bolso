@@ -887,3 +887,4 @@ kbd { font-size: 11px; }
 .item .main small.restrict { color: var(--text-2); white-space: normal; }
 .item .side small.when { color: var(--muted); font-size: 13px; margin-top: 1px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .launched { font-size: 13px; margin-top: -6px; }
+.item .side small.when.reg { opacity: 0.8; font-style: italic; }
