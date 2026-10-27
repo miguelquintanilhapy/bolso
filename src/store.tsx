@@ -47,6 +47,8 @@ interface Ctx extends Data {
   removeCategoryWithUndo: (category: Category) => Promise<void>;
   removeWithUndo: (table: 'transactions' | 'recurrences' | 'investment_snapshots', rows: Row[], message: string) => Promise<void>;
   markRead: (ids: string[]) => Promise<void>;
+  /** Exclui avisos da lista (ficam guardados como excluídos, para o mesmo aviso não voltar). */
+  dismissNotifications: (ids: string[]) => Promise<void>;
   /** Marca um lançamento pendente como pago/recebido, com "Desfazer". */
   markPaid: (tx: Transaction) => Promise<void>;
   /** Ids de lançamentos recém-criados/alterados (destacados por um instante). */
@@ -282,6 +284,22 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
     for (const n of targets) merge('notifications', [await db.update<AppNotification>('notifications', n.id, { read: true })]);
   }, [data.notifications, merge]);
 
+  const dismissNotifications = useCallback(async (ids: string[]) => {
+    const targets = data.notifications.filter((n) => ids.includes(n.id) && !n.dismissed);
+    if (!targets.length) return;
+    try {
+      for (const n of targets) merge('notifications', [await db.update<AppNotification>('notifications', n.id, { dismissed: true, read: true })]);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      toast(/dismissed/.test(msg) ? 'Para excluir avisos, rode o arquivo supabase/schema.sql de novo no Supabase (veja docs/SETUP.md).' : 'Não consegui excluir.');
+      return;
+    }
+    toast(targets.length === 1 ? 'Aviso excluído' : `${targets.length} avisos excluídos`, {
+      label: 'Desfazer',
+      run: async () => { for (const n of targets) merge('notifications', [await db.update<AppNotification>('notifications', n.id, { dismissed: false })]); },
+    });
+  }, [data.notifications, merge, toast]);
+
   const paying = useRef(new Set<string>());
   const markPaid = useCallback(async (tx: Transaction) => {
     if (paying.current.has(tx.id)) return;
@@ -314,7 +332,7 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
   }, [reload]);
 
   const value: Ctx = {
-    ...data, user, today, mode: db.mode, reload, syncRecurrences, loadMs, refreshing, addTransactions, save, insertMany, remove, removeWithUndo, removeCategoryWithUndo, markRead, markPaid, flash,
+    ...data, user, today, mode: db.mode, reload, syncRecurrences, loadMs, refreshing, addTransactions, save, insertMany, remove, removeWithUndo, removeCategoryWithUndo, markRead, dismissNotifications, markPaid, flash,
     toasts, toast, dismissToast, signOut: async () => { await clearCache(); await db.signOut(); },
   };
 

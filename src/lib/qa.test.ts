@@ -394,7 +394,8 @@ describe('faturas: índice por cartão dá o mesmo resultado da conta direta', (
 describe('ordem das listas: mais recente em cima', () => {
   const t = (id: string, date: string, created_at?: string) => ({ id, date, created_at }) as Transaction;
   it('dias mais novos primeiro; dentro do dia, o último lançado em cima', () => {
-    const list = [t('a', '2026-10-25', '2026-10-25T08:00:00Z'), t('b', '2026-10-26', '2026-10-26T09:00:00Z'), t('c', '2026-10-26', '2026-10-26T15:30:00Z'), t('d', '2026-10-26', '2026-10-26T11:00:00Z')];
+    const local = (d: number, h: number, mi: number) => new Date(2026, 9, d, h, mi).toISOString(); // horário local: o resultado não depende do fuso
+    const list = [t('a', '2026-10-25', local(25, 8, 0)), t('b', '2026-10-26', local(26, 9, 0)), t('c', '2026-10-26', local(26, 15, 30)), t('d', '2026-10-26', local(26, 11, 0))];
     expect([...list].sort(newestFirst).map((x) => x.id)).toEqual(['c', 'd', 'b', 'a']);
   });
   it('sem horário de criação não quebra e mantém a ordem por data', () => {

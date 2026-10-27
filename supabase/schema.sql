@@ -208,6 +208,15 @@ create trigger bolso_account_categories
   for each row execute function public.enforce_account_categories();
 
 -- ============================================================
+-- Horário do lançamento (informado pela pessoa; vazio = vale a hora do registro) e avisos excluídos
+-- ============================================================
+alter table public.transactions add column if not exists occurred_time text;
+alter table public.transactions drop constraint if exists transactions_occurred_time_check;
+alter table public.transactions add constraint transactions_occurred_time_check
+  check (occurred_time is null or occurred_time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$');
+alter table public.notifications add column if not exists dismissed boolean not null default false;
+
+-- ============================================================
 -- ping(): usado pela rotina diária que evita a pausa do projeto gratuito
 -- ============================================================
 create or replace function public.ping()
