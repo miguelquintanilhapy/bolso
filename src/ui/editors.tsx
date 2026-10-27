@@ -6,6 +6,7 @@ import { useConfirm } from './confirm';
 import { Segmented, Switch } from './common';
 import { MoneyInput } from './MoneyInput';
 import { TimeInput } from './TimeInput';
+import { BANK_TEMPLATES, templateName } from '../lib/bankTemplates';
 import { effectiveTime, launchInfo, validTime } from '../lib/launch';
 import { CATEGORY_ICONS, CategoryIcon, COLORS } from './icons';
 import type { Account, AccountKind, Category, NewTransaction, Recurrence, Snapshot, Transaction, TxKind } from '../lib/types';
@@ -500,7 +501,18 @@ function AccountEditor({ id, thenTx, reopenTx, onClose }: { id?: string; thenTx?
   const duplicate = s.accounts.some((a) => a.id !== existing?.id && !a.archived && norm(a.name) === norm(name.trim()) && name.trim() !== '');
   const closingDay = Number(closing), dueDay = Number(due);
   const daysOk = closingDay >= 1 && closingDay <= 31 && dueDay >= 1 && dueDay <= 31;
-  const pickKind = (k: AccountKind) => { setKind(k); if (!colorTouched) setColor(KIND_INFO[k].color); };
+  const [template, setTemplate] = useState<string | null>(null);
+  const pickKind = (k: AccountKind) => {
+    setKind(k);
+    const t = BANK_TEMPLATES.find((x) => x.id === template);
+    if (t) setName(templateName(t, k)); // trocar Conta ↔ Cartão ajusta o nome sugerido
+    else if (!colorTouched) setColor(KIND_INFO[k].color);
+  };
+  const pickTemplate = (id: string) => {
+    const t = BANK_TEMPLATES.find((x) => x.id === id)!;
+    if (template === id) { setTemplate(null); return; }
+    setTemplate(id); setName(templateName(t, kind)); setColor(t.color); setColorTouched(true);
+  };
 
   const submit = async () => {
     if (sending.current) return;
@@ -549,7 +561,7 @@ function AccountEditor({ id, thenTx, reopenTx, onClose }: { id?: string; thenTx?
     onClose();
   };
 
-  const guardedClose = useGuardedClose(onClose, { name, kind, initial, closing, due, limit, color, isDefault, limitCats, allowedIds });
+  const guardedClose = useGuardedClose(onClose, { name, kind, initial, closing, due, limit, color, isDefault, limitCats, allowedIds, template });
   return (
     <Sheet title={TITLES[kind][existing ? 1 : 0]} onClose={guardedClose}
       footer={
@@ -563,6 +575,17 @@ function AccountEditor({ id, thenTx, reopenTx, onClose }: { id?: string; thenTx?
           options={[{ id: 'checking', label: 'Conta' }, { id: 'credit', label: 'Cartão' }, { id: 'investment', label: 'Investimento' }]} />
       )}
       <p className="muted kind-hint" key={kind}>{info.hint}</p>
+      {!existing && kind !== 'investment' && (
+        <Field label="Começar por um modelo" optional hint="Preenche o nome e a cor; você pode mudar depois.">
+          <div className="chips" role="group" aria-label="Modelos de banco">
+            {BANK_TEMPLATES.map((t) => (
+              <button key={t.id} type="button" className={`chip ${template === t.id ? 'active' : ''}`} aria-pressed={template === t.id} onClick={() => pickTemplate(t.id)}>
+                <span className="dot-color" style={{ background: t.color }} /> {t.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+      )}
       <Field label="Nome"><input className="input" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void submit()} placeholder={kind === 'credit' ? 'Ex.: Nubank Cartão' : kind === 'investment' ? 'Ex.: Tesouro Selic' : 'Ex.: Nubank Conta'} />
         {duplicate && <small className="warn-text">Já existe uma conta com esse nome. Use nomes diferentes para o lançamento rápido saber qual escolher.</small>}
       </Field>

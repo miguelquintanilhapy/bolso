@@ -1,5 +1,5 @@
 import type { Account, Category, NewTransaction, Snapshot, Transaction } from './types';
-import { addDays, addMonthsToDate, addMonthsToMonth, dateInMonth, endOfMonth, monthOf, monthRange } from './dates';
+import { addDays, addMonthsToDate, addMonthsToMonth, dateInMonth, daysInMonth, endOfMonth, monthOf, monthRange } from './dates';
 import { round2 } from './money';
 import { sortTime } from './launch';
 
@@ -229,6 +229,30 @@ export interface BudgetStatus {
   remaining: number;
   ratio: number;
   level: BudgetLevel;
+}
+
+/**
+ * Ritmo do mês: quanto do mês já passou x quanto do limite já foi usado.
+ * `ahead` = gastou bem mais do que o mês pede (ex.: 60% do limite com 30% do mês) mas ainda sem estourar.
+ */
+export function pace(ratioUsed: number, today: string, month: string) {
+  if (monthOf(today) !== month) return { elapsed: monthOf(today) > month ? 1 : 0, ahead: false };
+  const day = Number(today.slice(8, 10));
+  const elapsed = day / daysInMonth(month);
+  return { elapsed, ahead: ratioUsed < 1 && ratioUsed >= 0.3 && ratioUsed - elapsed >= 0.2 };
+}
+
+/** Gasto do mês por tag (um lançamento com 2 tags conta nas duas). */
+export function spendingByTag(txs: Transaction[], month: string): { tag: string; total: number; count: number }[] {
+  const map = new Map<string, { total: number; count: number }>();
+  for (const t of txs) {
+    if (t.kind !== 'expense' || monthOf(t.date) !== month) continue;
+    for (const tag of t.tags) {
+      const cur = map.get(tag) ?? { total: 0, count: 0 };
+      map.set(tag, { total: round2(cur.total + t.amount), count: cur.count + 1 });
+    }
+  }
+  return [...map].map(([tag, v]) => ({ tag, ...v })).sort((a, b) => b.total - a.total || a.tag.localeCompare(b.tag));
 }
 
 export function budgetStatuses(categories: Category[], txs: Transaction[], month: string): BudgetStatus[] {
