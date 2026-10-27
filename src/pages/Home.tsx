@@ -138,6 +138,7 @@ export function Home() {
 
   return (
     <div className="screen">
+      <h1 className="sr-only">Início</h1>
       <div className="topbar">
         <Link to="/mais" className="avatar" aria-label="Seu perfil">{name[0]?.toUpperCase()}</Link>
         <div className="greeting grow"><small>{greeting()}</small><b>{name}</b></div>

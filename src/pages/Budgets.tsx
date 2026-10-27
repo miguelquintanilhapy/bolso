@@ -7,7 +7,7 @@ import { useEditor } from '../ui/editors';
 import { CategoryIcon } from '../ui/icons';
 import { Ring } from '../ui/Charts';
 import { Money } from '../ui/privacy';
-import { budgetStatuses, spendingByCategory } from '../lib/finance';
+import { budgetStatuses, pace, spendingByCategory } from '../lib/finance';
 import { daysInMonth, monthOf } from '../lib/dates';
 import { round2 } from '../lib/money';
 
@@ -28,6 +28,7 @@ export function Budgets() {
   const ratio = totalLimit ? totalSpent / totalLimit : 0;
   const level = ratio >= 1 ? 'over' : ratio >= 0.8 ? 'warn' : 'ok';
   const worst = statuses.length ? [...statuses].sort((a, b) => b.ratio - a.ratio)[0] : null;
+  const totalPace = pace(ratio, s.today, month);
   const isCurrent = month === monthOf(s.today);
   const daysLeft = isCurrent ? daysInMonth(month) - Number(s.today.slice(8, 10)) + 1 : null;
 
@@ -61,7 +62,8 @@ export function Budgets() {
               <div className="row-between hint"><span><Money value={totalSpent} /> gastos</span><span>de <Money value={totalLimit} /></span></div>
               {worst && (
                 <p className="summary-line" role="status">
-                  {worst.level === 'over' ? <><b>{worst.category.name}</b> estourou o limite em <b><Money value={Math.abs(worst.remaining)} /></b>.</>
+                  {totalPace.ahead && worst.level === 'ok' ? <>Você já usou <b>{Math.round(ratio * 100)}%</b> do orçamento com <b>{Math.round(totalPace.elapsed * 100)}%</b> do mês: o ritmo está acima do que o mês pede.</>
+                    : worst.level === 'over' ? <><b>{worst.category.name}</b> estourou o limite em <b><Money value={Math.abs(worst.remaining)} /></b>.</>
                     : worst.level === 'warn' ? <><b>{worst.category.name}</b> está perto do limite: restam <b><Money value={worst.remaining} /></b>.</>
                     : <>Tudo dentro do limite. A categoria que mais pesa é <b>{worst.category.name}</b> ({Math.round(worst.ratio * 100)}%).</>}
                 </p>
@@ -82,7 +84,7 @@ export function Budgets() {
                     <span className="main">
                       <b>{b.category.name}</b>
                       <small><Money value={b.spent} /> de <Money value={b.limit} /></small>
-                      <small className={`pct ${b.level}`}>{Math.round(b.ratio * 100)}%{b.level === 'over' ? ' · estourou' : b.level === 'warn' ? ' · perto do limite' : ''}</small>
+                      <small className={`pct ${b.level === 'ok' && pace(b.ratio, s.today, month).ahead ? 'warn' : b.level}`}>{Math.round(b.ratio * 100)}%{b.level === 'over' ? ' · estourou' : b.level === 'warn' ? ' · perto do limite' : pace(b.ratio, s.today, month).ahead ? ' · ritmo acima do mês' : ''}</small>
                     </span>
                     <span className="side">
                       <b className={b.level === 'over' ? 'red' : ''}><Money value={Math.abs(b.remaining)} /></b>
