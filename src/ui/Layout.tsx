@@ -122,12 +122,12 @@ export function Layout() {
       <div className={`ptr${pull ? ' on' : ''}${spinning ? ' spin' : ''}`} style={{ transform: `translate(-50%, ${pull - 44}px)`, opacity: Math.min(1, pull / 40) }} aria-hidden><LoaderCircle size={22} /></div>
       <div className={`inline-bar${barTitle ? ' on' : ''}`} aria-hidden>{barTitle}</div>
       {!online && <div className="offline" role="status"><WifiOff size={14} style={{ verticalAlign: -2 }} /> Sem conexão — o que você alterar agora pode não ser salvo.</div>}
-      <div className="app"><div className="page" key={section}><Outlet /></div></div>
+      <main className="app"><div className="page" key={section}><Outlet /></div></main>
       {showFab && <button className="fab" onClick={() => newTx()} aria-label="Novo lançamento"><Plus size={26} /></button>}
       <nav className="nav" aria-label="Navegação principal" style={{ '--i': tabIndex(pathname) } as React.CSSProperties}>
         <Link to="/" className="nav-brand" aria-label="Bolso, ir para o início"><BrandLogo /><img className="brand-mark mark-light" src="/favicon-64.png" alt="" /><img className="brand-mark mark-dark" src="/favicon-dark-64.png" alt="" /></Link>
-        <button className="nav-new" onClick={() => newTx()} aria-label="Novo lançamento"><Plus size={18} /><span className="lbl"> Novo lançamento</span> <kbd>N</kbd></button>
-        <button className="nav-search" onClick={openSearch} aria-label="Buscar em tudo"><Search size={18} /><span className="lbl">Buscar</span> <kbd>Ctrl K</kbd></button>
+        <button className="nav-new" onClick={() => newTx()}><Plus size={18} /><span className="lbl"> Novo lançamento</span> <kbd>N</kbd></button>
+        <button className="nav-search" onClick={openSearch}><Search size={18} /><span className="lbl">Buscar</span> <kbd>Ctrl K</kbd></button>
         <div className="nav-items">
           <span className="nav-pill" aria-hidden />
           {items.map(({ to, label, icon: I, end }) => (
@@ -136,7 +136,7 @@ export function Layout() {
             </NavLink>
           ))}
         </div>
-        <Link to="/mais" className="nav-user" aria-label="Seu perfil e configurações">
+        <Link to="/mais" className="nav-user">
           <span className="avatar" aria-hidden>{getName(user.email)[0]?.toUpperCase()}</span>
           <span className="nm"><b>{getName(user.email)}</b><small>{user.email}</small></span>
         </Link>

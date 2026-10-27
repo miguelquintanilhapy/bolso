@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Hash } from 'lucide-react';
 import { useStore } from '../store';
 import { MonthNav, Pills, SectionTitle, TxRow } from '../ui/common';
 import { AreaChart, BarChart } from '../ui/Charts';
 import { CategoryIcon } from '../ui/icons';
 import { Money, useMaskedText } from '../ui/privacy';
 import { useEditor } from '../ui/editors';
-import { accountBalance, activeAccounts, monthSummary, monthlyEvolution, netWorthSeries, spendingByCategory } from '../lib/finance';
+import { accountBalance, activeAccounts, monthSummary, monthlyEvolution, netWorthSeries, spendingByCategory, spendingByTag } from '../lib/finance';
 import { addMonthsToMonth, monthLabel, monthOf, monthShort } from '../lib/dates';
 import { round2 } from '../lib/money';
 
@@ -28,7 +30,14 @@ function Summary() {
   const s = useStore();
   const { editTx } = useEditor();
   const mask = useMaskedText();
+  const nav = useNavigate();
   const [month, setMonth] = useState(monthOf(s.today));
+  const tagSpend = useMemo(() => spendingByTag(s.transactions, month), [s.transactions, month]);
+  // abre o Extrato já filtrado pela tag e pelo mês
+  const openTag = (tag: string) => {
+    try { sessionStorage.setItem('bolso:extrato', JSON.stringify({ month, allTime: false, type: 'all', q: '', accountId: '', categoryId: '', tag })); } catch { /* sem armazenamento */ }
+    nav('/lancamentos');
+  };
   const sum = monthSummary(s.transactions, month);
   const cats = useMemo(() => spendingByCategory(s.transactions, month), [s.transactions, month]);
   const total = cats.reduce((a, c) => a + c.total, 0);
@@ -73,6 +82,20 @@ function Summary() {
 
         </div>
         <div className="split-col">
+          {tagSpend.length > 0 && (
+            <>
+              <SectionTitle title="Por tag" />
+              <div className="group">
+                {tagSpend.slice(0, 8).map((t) => (
+                  <button key={t.tag} className="item" onClick={() => openTag(t.tag)}>
+                    <span className="ico"><Hash size={18} /></span>
+                    <span className="main"><b>#{t.tag}</b><small>{t.count} lançamento{t.count > 1 ? 's' : ''} · toque para ver</small></span>
+                    <span className="side"><b><Money value={t.total} /></b></span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
           {top.length > 0 && (
             <>
               <SectionTitle title="Maiores gastos" />

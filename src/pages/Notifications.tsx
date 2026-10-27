@@ -39,11 +39,11 @@ export function Notifications() {
           {list.map((n) => {
             const I = ICON[n.kind] ?? CircleAlert;
             return (
-              <div key={n.id} role="button" tabIndex={0} className={`item notif ${fresh.current.has(n.id) ? 'unread' : ''}`}
-                onClick={() => { void s.markRead([n.id]); if (n.link) nav(n.link); }}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void s.markRead([n.id]); if (n.link) nav(n.link); } }}>
+              <div key={n.id} className={`item notif ${fresh.current.has(n.id) ? 'unread' : ''}`}
+                onClick={() => { void s.markRead([n.id]); if (n.link) nav(n.link); }}>
                 <span className={`ico ${/estourou|atraso|atrasado/i.test(n.title) ? 'bad' : ''}`}><I size={19} /></span>
-                <span className="main"><b style={{ whiteSpace: 'normal' }}>{n.title}</b><small style={{ whiteSpace: 'normal' }}>{n.body}</small></span>
+                <span className="main" role="button" tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void s.markRead([n.id]); if (n.link) nav(n.link); } }}><b style={{ whiteSpace: 'normal' }}>{n.title}</b><small style={{ whiteSpace: 'normal' }}>{n.body}</small></span>
                 <span className="side"><small>{dayLabel(n.created_at.slice(0, 10), s.today)}</small></span>
                 <button className="trash" aria-label={`Excluir aviso: ${n.title}`} onClick={(e) => { e.stopPropagation(); void s.dismissNotifications([n.id]); }}><X size={18} /></button>
               </div>

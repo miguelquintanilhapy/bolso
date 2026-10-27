@@ -75,7 +75,7 @@ export function SearchPalette() {
           <input ref={input} value={q} onChange={(e) => { setQ(e.target.value); setSel(0); }} placeholder="Buscar lançamento, conta ou tela…" aria-label="Buscar em tudo" enterKeyHint="search" autoComplete="off" />
           <button type="button" className="clear-x" onClick={() => setOpen(false)} aria-label="Fechar busca"><X size={16} /></button>
         </label>
-        <div className="palette-list" role="listbox">
+        <div className="palette-list" role="listbox" aria-label="Resultados da busca">
           {hits.length === 0 && <p className="palette-empty">Nada encontrado para “{q}”.</p>}
           {hits.map((h, i) => (
             <button key={h.key} role="option" aria-selected={i === sel} className={`palette-row ${i === sel ? 'sel' : ''}`} onMouseEnter={() => setSel(i)} onClick={h.run}>

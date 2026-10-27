@@ -47,7 +47,7 @@ export function More() {
       <div className="topbar"><h1 className="title page-title">Mais</h1></div>
       <div className="cols even">
       <div className="col">
-      <button className="card row-between" style={{ textAlign: 'left', width: '100%' }} onClick={() => { setDraft(name); setEditName(true); }} aria-label="Editar seu nome">
+      <button className="card row-between" style={{ textAlign: 'left', width: '100%' }} onClick={() => { setDraft(name); setEditName(true); }}>
         <div className="row-between" style={{ justifyContent: 'flex-start' }}>
           <div className="avatar">{name[0]?.toUpperCase()}</div>
           <div><b>{name}</b><div className="muted" style={{ fontSize: 13 }}>{s.user.email} · {s.mode === 'demo' ? 'Modo demonstração' : 'Sincronizado'}</div></div>

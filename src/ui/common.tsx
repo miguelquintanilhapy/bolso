@@ -110,13 +110,13 @@ export function TxRow({ tx, accounts, categories, onClick, showDate, hideAccount
         {pending && <button className="sw pay" tabIndex={swipe.open ? 0 : -1} onClick={() => { swipe.close(); void markPaid(tx); }}><Check size={20} strokeWidth={3} />{income ? 'Receber' : transfer ? 'Confirmar' : 'Pagar'}</button>}
         <button className="sw del" tabIndex={swipe.open ? 0 : -1} onClick={() => { swipe.close(); void removeWithUndo('transactions', [tx], 'Lançamento apagado'); }}><Trash2 size={20} />Apagar</button>
       </div>
-    <div className={`item ${flash.has(tx.id) ? 'flash' : ''} ${swipe.dragging ? 'dragging' : ''}`} role="button" tabIndex={0} onClick={click}
-      style={swipe.dx ? { transform: `translateX(${swipe.dx}px)` } : undefined} {...swipe.handlers}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
+    <div className={`item ${flash.has(tx.id) ? 'flash' : ''} ${swipe.dragging ? 'dragging' : ''}`} onClick={click}
+      style={swipe.dx ? { transform: `translateX(${swipe.dx}px)` } : undefined} {...swipe.handlers}>
       <span className={`ico ${income ? 'in' : ''} ${late && !income ? 'bad' : ''}`}>
         {transfer ? <ArrowLeftRight size={19} /> : cat ? <CategoryIcon name={cat.icon} /> : income ? <ArrowDown size={19} /> : <ArrowUp size={19} />}
       </span>
-      <span className="main">
+      <span className="main" role="button" tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
         <b>{title}</b>
         <small className={pending && income ? (late ? 'amber' : 'green') : late ? 'red' : ''}>{sub}{tx.tags.length ? ` · ${tx.tags.map((t) => '#' + t).join(' ')}` : ''}</small>
       </span>
@@ -126,7 +126,7 @@ export function TxRow({ tx, accounts, categories, onClick, showDate, hideAccount
           ? <small className="when" title="Horário informado">{when.time}</small>
           : <small className="when reg" title={`Hora do registro: lançado em ${launch?.full}`}>{launch?.sameDay ? `reg. ${when.time}` : `lançado ${launch?.dm} ${when.time}`}</small>)}
         {pending && (
-          <button className={`pay-btn ${income ? 'in' : 'out'}`} aria-label={`${income ? 'Marcar como recebido' : 'Marcar como pago'}: ${title}`}
+          <button className={`pay-btn ${income ? 'in' : 'out'}`} aria-label={`${income ? 'Receber' : transfer ? 'Confirmar' : 'Pagar'}: ${title}`}
             onClick={(e) => { e.stopPropagation(); void markPaid(tx); }}>
             <Check size={13} strokeWidth={3} /> {income ? 'Receber' : transfer ? 'Confirmar' : 'Pagar'}
           </button>

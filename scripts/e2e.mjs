@@ -141,7 +141,7 @@ await page.click('.toast button'); await page.waitForTimeout(300);
 check('desfazer volta a ficar pendente', (await page.locator('.pay-btn').count()) === pendingBefore);
 
 // formulário: sugestão de categoria, atalho "Ontem", Enter salva, rodapé fixo
-await page.click('button[aria-label="Novo lançamento"]');
+await page.click('button[aria-label="Novo lançamento"], button.nav-new');
 await page.waitForSelector('.sheet');
 await page.fill('.sheet input[placeholder="Ex.: Mercado"]', 'mercado do bairro');
 check('categoria sugerida pela descrição (Alimentação)', (await page.locator('.sheet .chip[aria-pressed="true"]:has-text("Alimentação")').count()) === 1);
@@ -175,7 +175,7 @@ await page.waitForSelector('.toast:has-text("R$ 77,00")'); await page.waitForTim
 await go('/lancamentos');
 const dup = await page.locator('.item:has-text("R$ 77,00")').count();
 check('campo rápido: duplo envio cria só 1 lançamento', dup === 1, `criou ${dup}`);
-await page.click('button[aria-label="Novo lançamento"]'); await page.waitForSelector('.sheet');
+await page.click('button[aria-label="Novo lançamento"], button.nav-new'); await page.waitForSelector('.sheet');
 await money(page, '.sheet .amount-input', '88,00');
 await page.evaluate(() => { const b = document.querySelector('.sheet-foot .btn.primary'); b.click(); b.click(); });
 await page.waitForSelector('.sheet', { state: 'detached' }); await page.waitForTimeout(500);
@@ -183,7 +183,7 @@ const dup2 = await page.locator('.item:has-text("R$ 88,00")').count();
 check('formulário: duplo clique em Salvar cria só 1 lançamento', dup2 === 1, `criou ${dup2}`);
 
 // arrastar o painel para baixo fecha
-await page.click('button[aria-label="Novo lançamento"]');
+await page.click('button[aria-label="Novo lançamento"], button.nav-new');
 await page.waitForSelector('.sheet');
 await page.waitForTimeout(450);
 const hb = await page.locator('.sheet-head h2').boundingBox();
@@ -195,7 +195,7 @@ await page.waitForSelector('.sheet', { state: 'detached', timeout: 3000 });
 check('arrastar o painel para baixo fecha', true);
 
 // Esc fecha
-await page.click('button[aria-label="Novo lançamento"]'); await page.waitForSelector('.sheet');
+await page.click('button[aria-label="Novo lançamento"], button.nav-new'); await page.waitForSelector('.sheet');
 await esc(page);
 await page.waitForSelector('.sheet', { state: 'detached', timeout: 3000 });
 check('Esc fecha o painel', true);
@@ -719,6 +719,42 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   await qp.click('.quick-accounts .qa:has-text("Nubank Cartão")'); await qp.click('.quick-accounts .qa:has-text("Nubank Cartão")');
   check('conta do rápido: tocar de novo desfaz a escolha', (await qp.locator('.qa.picked').count()) === 0);
   await qctx.close();
+}
+
+// ── modelos de conta e gasto por tag
+{
+  const mctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'pt-BR', reducedMotion: 'reduce' });
+  const mp = await mctx.newPage();
+  await mp.goto(`${url}/?demo`); await mp.waitForSelector('.hero');
+  const go = (path) => mp.evaluate((x) => { history.pushState({}, '', x); dispatchEvent(new PopStateEvent('popstate')); }, path);
+  await go('/contas'); await mp.click('button[aria-label="Adicionar"]'); await mp.waitForSelector('.sheet');
+  await mp.click('.sheet .chip:has-text("Swile")');
+  check('modelos: tocar em "Swile" preenche o nome', (await mp.inputValue('.sheet input[placeholder^="Ex.: Nubank"]')) === 'Swile');
+  await mp.click('.sheet button:has-text("Cartão")');
+  await mp.click('.sheet .chip:has-text("Itaú")');
+  await mp.click('.sheet .seg button:has-text("Conta")');
+  check('modelos: trocar Conta ↔ Cartão ajusta o nome sugerido', (await mp.inputValue('.sheet input[placeholder^="Ex.: Nubank"]')) === 'Itaú');
+  await mp.click('.sheet .seg button:has-text("Cartão")');
+  check('modelos: no cartão o nome ganha "Cartão"', (await mp.inputValue('.sheet input[placeholder^="Ex.: Nubank"]')) === 'Itaú Cartão');
+  await mp.click('.sheet .chip:has-text("Itaú")');
+  await mp.click('.sheet .seg button:has-text("Conta")');
+  await mp.fill('.sheet input[placeholder^="Ex.: Nubank"]', 'Carteira VR');
+  await mp.click('.sheet .chip:has-text("VR")');
+  await mp.click('.sheet .foot-actions .btn.primary'); await mp.waitForSelector('.sheet', { state: 'detached' });
+  check('modelos: a conta criada pelo modelo aparece na lista', /\bVR\b/.test(await mp.locator('.screen').innerText()));
+
+  // tags no Insights
+  await go('/'); await mp.waitForSelector('.hero');
+  const q = 'input[aria-label="Lançamento rápido"]';
+  await mp.fill(q, '25 mercado #viagem'); await mp.press(q, 'Enter'); await mp.waitForSelector('.toast'); await mp.waitForTimeout(300);
+  await mp.fill(q, '10 uber #viagem'); await mp.press(q, 'Enter'); await mp.waitForTimeout(500);
+  await go('/insights'); await mp.waitForSelector('.summary-line, .grid3');
+  const tagRow = mp.locator('.item:has-text("#viagem")');
+  check('tags: o Insights mostra o gasto por tag', (await tagRow.count()) === 1 && /35,00/.test(await tagRow.innerText()), await tagRow.innerText().catch(() => ''));
+  await tagRow.click(); await mp.waitForSelector('.swipe');
+  const filtered = await mp.locator('.swipe').allInnerTexts();
+  check('tags: tocar abre o Extrato já filtrado pela tag', filtered.length === 2 && filtered.every((t) => /#viagem/.test(t)), filtered.length + ' linhas');
+  await mctx.close();
 }
 
 // ── computador e tablet

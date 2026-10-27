@@ -2,12 +2,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Account, Category, Recurrence, Snapshot, Transaction } from './types';
 import {
-  accountBalance, budgetStatuses, newestFirst, buildInstallments, buildInvoice, invoiceMonths, cardOverview, forecast, invoiceDueDate, invoiceMonthOf,
+  accountBalance, budgetStatuses, newestFirst, pace, spendingByTag, buildInstallments, buildInvoice, invoiceMonths, cardOverview, forecast, invoiceDueDate, invoiceMonthOf,
   investmentStats, monthSummary, netWorth, netWorthSeries, splitInstallments,
 } from './finance';
 import { addDays, addMonthsToDate, dayLabel, dateInMonth, diffDays, monthRange, toISO } from './dates';
 import { amountError, compactBRL, formatBRL, parseAmount, round2, splitBRL, typedToValue, valueToDisplay } from './money';
 import { parseQuickEntry } from './quickEntry';
+import { BANK_TEMPLATES, templateName } from './bankTemplates';
 import { planRecurrences } from './recurrence';
 import { transactionsToCSV } from './exports';
 
@@ -412,5 +413,30 @@ describe('exportação CSV com horário', () => {
     expect(lines[0]).toMatch(/;"?lancado_em"?$|lancado_em$/);
     expect(lines[1]).toContain('"2026-10-26 14:32"');
     expect(lines[2].endsWith('""')).toBe(true);
+  });
+});
+
+describe('tags, ritmo do orçamento e modelos de conta', () => {
+  const tx = (o: Partial<Transaction>) => ({ id: Math.random().toString(), kind: 'expense', amount: 10, date: '2026-10-05', description: '', notes: '', tags: [], status: 'paid', account_id: 'a', to_account_id: null, category_id: null, installment_group: null, installment_number: null, installment_total: null, recurrence_id: null, ref_month: null, invoice_ref: null, ...o }) as Transaction;
+  it('spendingByTag: soma por tag só de despesas do mês, ordenado; 2 tags contam nas duas', () => {
+    const r = spendingByTag([tx({ amount: 100, tags: ['viagem'] }), tx({ amount: 50.5, tags: ['viagem', 'mae'] }), tx({ amount: 30, tags: ['mae'], date: '2026-09-30' }), tx({ amount: 999, kind: 'income', tags: ['viagem'] }), tx({ amount: 5, tags: [] })], '2026-10');
+    expect(r).toEqual([{ tag: 'viagem', total: 150.5, count: 2 }, { tag: 'mae', total: 50.5, count: 1 }]);
+  });
+  it('pace: 60% do limite com 30% do mês está acima do ritmo', () => {
+    expect(pace(0.6, '2026-10-10', '2026-10').ahead).toBe(true); // 10/31 ≈ 32%
+    expect(pace(0.4, '2026-10-16', '2026-10').ahead).toBe(false); // 52% do mês
+    expect(pace(0.2, '2026-10-02', '2026-10').ahead).toBe(false); // gasto pequeno não alarma
+    expect(pace(1.2, '2026-10-10', '2026-10').ahead).toBe(false); // estourou: é outro aviso
+  });
+  it('pace: meses passados e futuros não dão alerta de ritmo', () => {
+    expect(pace(0.9, '2026-10-26', '2026-09')).toEqual({ elapsed: 1, ahead: false });
+    expect(pace(0.9, '2026-10-26', '2026-11')).toEqual({ elapsed: 0, ahead: false });
+  });
+  it('modelos: cartão ganha "Cartão", conta e benefício ficam só com a marca', () => {
+    const nu = BANK_TEMPLATES.find((t) => t.id === 'nubank')!;
+    expect(templateName(nu, 'credit')).toBe('Nubank Cartão');
+    expect(templateName(nu, 'checking')).toBe('Nubank');
+    expect(new Set(BANK_TEMPLATES.map((t) => t.id)).size).toBe(BANK_TEMPLATES.length);
+    expect(BANK_TEMPLATES.every((t) => /^#[0-9a-f]{6}$/i.test(t.color))).toBe(true);
   });
 });
