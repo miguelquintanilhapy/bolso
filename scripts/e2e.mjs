@@ -698,6 +698,29 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   await hctx.close();
 }
 
+// ── escolher a conta do lançamento rápido pelos ícones
+{
+  const qctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'pt-BR', reducedMotion: 'reduce' });
+  const qp = await qctx.newPage();
+  await qp.goto(`${url}/?demo`); await qp.waitForSelector('.hero');
+  const q = 'input[aria-label="Lançamento rápido"]';
+  const send = async (t) => { await qp.fill(q, t); await qp.press(q, 'Enter'); await qp.waitForSelector('.toast'); const msg = await qp.locator('.toast').innerText(); await qp.waitForTimeout(250); return msg; };
+  const names = await qp.locator('.quick-accounts .qa').allInnerTexts();
+  check('conta do rápido: aparecem as contas e cartões (sem investimento)', names.some((n) => /Nubank Conta/.test(n)) && names.some((n) => /Nubank Cartão/.test(n)) && !names.some((n) => /Tesouro/.test(n)), names.join(' | '));
+  check('conta do rápido: a conta padrão vem destacada', /Nubank Conta/.test(await qp.locator('.quick-accounts .qa.on').first().innerText()) && (await qp.locator('.qa.picked').count()) === 0);
+  await qp.click('.quick-accounts .qa:has-text("Nubank Cartão")');
+  check('conta do rápido: tocar escolhe a conta (fica em destaque forte)', /Nubank Cartão/.test(await qp.locator('.qa.picked').innerText()));
+  check('conta do rápido: lançar com o cartão escolhido cai no cartão', /Nubank Cartão/.test(await send('13 mercado')));
+  check('conta do rápido: depois de lançar, volta para a conta padrão', (await qp.locator('.qa.picked').count()) === 0 && /Nubank Conta/.test(await qp.locator('.quick-accounts .qa.on').first().innerText()));
+  check('conta do rápido: sem escolha, o lançamento cai na conta padrão', /Nubank Conta/.test(await send('14 mercado')));
+  await qp.click('.quick-accounts .qa:has-text("Nubank Cartão")');
+  check('conta do rápido: o ícone escolhido vence um nome de conta no texto', /Nubank Cartão/.test(await send('15 mercado nubank conta')));
+  check('conta do rápido: o nome no texto continua funcionando sem escolha', /Nubank Cartão/.test(await send('16 mercado nubank cartão')));
+  await qp.click('.quick-accounts .qa:has-text("Nubank Cartão")'); await qp.click('.quick-accounts .qa:has-text("Nubank Cartão")');
+  check('conta do rápido: tocar de novo desfaz a escolha', (await qp.locator('.qa.picked').count()) === 0);
+  await qctx.close();
+}
+
 // ── computador e tablet
 {
   const desk = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();

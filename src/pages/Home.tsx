@@ -11,7 +11,7 @@ import { INSTALL_STEPS, useInstall } from '../lib/install';
 import { collapseOverdue, findDuplicate, pendingWhen } from '../lib/ux';
 import { categoryAllowed, restrictionText } from '../lib/categoryRules';
 import { ModalSheet } from '../ui/Sheet';
-import { INVOICE_STATUS, KIND_ICON, KIND_LABEL } from '../ui/accountUi';
+import { AccountIcon, INVOICE_STATUS, KIND_ICON, KIND_LABEL } from '../ui/accountUi';
 import { describeAccount } from '../lib/accountInfo';
 import { activeAccounts, newestFirst, buildInstallments, forecast, monthSummary, netWorth, upcoming } from '../lib/finance';
 import { parseQuickEntry } from '../lib/quickEntry';
@@ -48,6 +48,7 @@ export function Home() {
   const inputRef = useRef<HTMLInputElement>(null);
   const sending = useRef(false); // trava contra duplo envio
   const [text, setText] = useState('');
+  const [quickAcc, setQuickAcc] = useState<string | null>(null); // conta escolhida nos ícones sob o campo (vale só para o próximo lançamento)
   const [hint, setHint] = useState(0);
   const [help, setHelp] = useState(false);
   const [stepsHidden, setStepsHidden] = useState(() => LS('bolso:steps-off'));
@@ -81,6 +82,9 @@ export function Home() {
     { done: s.categories.some((c) => c.budget_limit), title: 'Defina um limite de orçamento', sub: 'Para o Bolso avisar quando você se aproximar', run: () => nav('/categorias') },
   ];
   const doneCount = steps.filter((x) => x.done).length;
+  // contas que aceitam lançamento (investimento não): aparecem como ícones sob o campo rápido
+  const quickChoices = live.filter((a) => a.kind !== 'investment');
+  const defaultQuick = quickChoices.find((a) => a.is_default) ?? quickChoices.find((a) => a.kind === 'checking') ?? quickChoices[0];
   const showSteps = !stepsHidden && doneCount < steps.length;
   const { mode: installMode, install } = useInstall();
   const showInstall = !installHidden && installMode !== 'none';
@@ -91,12 +95,15 @@ export function Home() {
     const r = parseQuickEntry(text, { categories: s.categories, accounts: s.accounts, today: s.today });
     if (!r.ok) return s.toast(r.reason);
     const d = r.draft;
-    const acc = s.accounts.find((a) => a.id === d.account_id) ?? s.accounts.find((a) => a.is_default && !a.archived) ?? live.find((a) => a.kind === 'checking') ?? live[0];
+    // a conta escolhida nos ícones vale mais que qualquer nome no texto; sem escolha, vale o nome no texto e, por fim, a conta padrão
+    const picked = quickAcc ? live.find((a) => a.id === quickAcc && a.kind !== 'investment') : undefined;
+    const acc = picked ?? s.accounts.find((a) => a.id === d.account_id) ?? s.accounts.find((a) => a.is_default && !a.archived) ?? live.find((a) => a.kind === 'checking') ?? live[0];
     if (!acc) { s.toast('Você ainda não tem conta.', { label: 'Criar conta', run: () => openAccount() }); return; }
     // categoria desconhecida, ou que a conta não aceita: abre o formulário já preenchido para escolher uma permitida
     if (d.category_id && !categoryAllowed(acc, d.category_id)) s.toast(restrictionText(acc, s.categories));
     if (!d.category_id || !categoryAllowed(acc, d.category_id)) {
       setText('');
+      setQuickAcc(null);
       return newTx({ kind: d.kind, amount: d.amount, description: d.description, account_id: acc.id, date: d.date, installments: d.installments, tags: d.tags, keyword: categoryAllowed(acc, d.category_id) ? d.keyword : null });
     }
     const isCard = acc.kind === 'credit';
@@ -112,6 +119,7 @@ export function Home() {
     const typed = text;
     sending.current = true;
     setText(''); // limpa já: o segundo toque encontra o campo vazio
+    setQuickAcc(null);
     try {
       const rows = d.installments > 1 ? buildInstallments(base, d.installments, isCard, s.today, crypto.randomUUID()) : [base];
       const created = await s.addTransactions(rows);
@@ -121,6 +129,7 @@ export function Home() {
       });
     } catch (err) {
       setText(typed); // não perde o que foi digitado se der erro
+      setQuickAcc(picked?.id ?? null);
       s.toast(err instanceof Error ? err.message : 'Não consegui salvar.');
     } finally {
       sending.current = false;
@@ -177,12 +186,24 @@ export function Home() {
             </p>
           </section>
 
-          <form className="quick" onSubmit={quick} style={{ order: 2 }}>
+          <div className="quick-wrap" style={{ order: 2 }}>
+          <form className="quick" onSubmit={quick}>
             <input ref={inputRef} value={text} onChange={(e) => setText(e.target.value)} placeholder={`Digite: ${HINTS[hint]}`}
               aria-label="Lançamento rápido" enterKeyHint="send" autoComplete="off" autoCapitalize="none" />
             <button type="button" className="help" onClick={() => setHelp(true)} aria-label="Como usar o lançamento rápido"><CircleHelp size={20} /></button>
             <button className="send" disabled={!text.trim()} aria-label="Registrar"><Send size={18} /></button>
           </form>
+            {quickChoices.length > 1 && (
+              <div className="quick-accounts" role="group" aria-label="Em qual conta lançar">
+                {quickChoices.map((a) => (
+                  <button key={a.id} type="button" className={`qa ${(quickAcc ?? defaultQuick?.id) === a.id ? 'on' : ''} ${quickAcc === a.id ? 'picked' : ''}`}
+                    aria-pressed={(quickAcc ?? defaultQuick?.id) === a.id} onClick={() => { setQuickAcc(quickAcc === a.id ? null : a.id); inputRef.current?.focus(); }}>
+                    <AccountIcon account={a} size={22} /><span>{a.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="hblock" style={{ order: 3 }}>
           <p className="hint-title">Ou lance com mais detalhes</p>

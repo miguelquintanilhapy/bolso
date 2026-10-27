@@ -888,3 +888,14 @@ kbd { font-size: 11px; }
 .item .side small.when { color: var(--muted); font-size: 13px; margin-top: 1px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .launched { font-size: 13px; margin-top: -6px; }
 .item .side small.when.reg { opacity: 0.8; font-style: italic; }
+
+/* escolher a conta do lançamento rápido */
+.quick-wrap { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.quick-accounts { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px 2px 4px; margin: 0 -2px; }
+.quick-accounts::-webkit-scrollbar { display: none; }
+.qa { position: relative; display: inline-flex; align-items: center; gap: 8px; flex: none; height: 38px; padding: 0 14px 0 8px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); font-size: 14px; font-weight: 600; color: var(--text-2); white-space: nowrap; }
+.qa::before { content: ''; position: absolute; inset: -4px -2px; }
+.qa.on { background: var(--card-2); color: var(--text); box-shadow: inset 0 0 0 1.5px var(--muted); }
+.qa.picked { background: var(--primary); color: var(--on-primary); box-shadow: none; }
+.qa .acc-ico { flex: none; }
+.qa:active { transform: scale(0.96); }
