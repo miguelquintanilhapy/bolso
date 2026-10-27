@@ -55,5 +55,13 @@ await db.exec(`update accounts set allowed_category_ids = array['${lazer}']::uui
 check('marcar como pago um lançamento antigo de categoria agora proibida continua funcionando', !(await rejects(`update transactions set status = 'paid' where account_id = '${a}' and category_id = '${moradia}'`)));
 check('mover lançamento para conta que não aceita a categoria é recusado', await rejects(`update transactions set account_id = '${vale}' where account_id = '${a}' and category_id = '${moradia}'`));
 
+// horário do lançamento e avisos excluídos
+check('horário válido é aceito', !(await rejects(`insert into transactions (kind, amount, date, account_id, occurred_time) values ('expense', 1, '2026-10-06', '${a}', '09:15')`)));
+check('horário inválido é recusado', await rejects(`insert into transactions (kind, amount, date, account_id, occurred_time) values ('expense', 1, '2026-10-06', '${a}', '25:99')`));
+check('horário sem os dois pontos é recusado', await rejects(`insert into transactions (kind, amount, date, account_id, occurred_time) values ('expense', 1, '2026-10-06', '${a}', '9h15')`));
+check('horário é opcional', !(await rejects(`insert into transactions (kind, amount, date, account_id) values ('expense', 1, '2026-10-06', '${a}')`)));
+await db.exec(`insert into notifications (kind, title, dedupe_key) values ('x', 'y2', 'k2')`);
+check('aviso começa como não excluído', (await db.query(`select dismissed from notifications where dedupe_key = 'k2'`)).rows[0].dismissed === false);
+
 console.log(failures ? `\n${failures} falha(s)` : '\nschema OK');
 process.exit(failures ? 1 : 0);
