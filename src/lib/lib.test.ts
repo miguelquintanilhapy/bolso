@@ -185,6 +185,22 @@ describe('campo rápido', () => {
   it('sem valor é rejeitado', () => {
     expect(parseQuickEntry('só texto', ctx).ok).toBe(false);
   });
+  it('valor padrão da palavra-chave: só a palavra já lança', () => {
+    const cats = [cat({ id: 'food', name: 'Alimentação', keywords: ['cantina', 'mercado'], keyword_defaults: { cantina: 15.5 } })];
+    const c2 = { categories: cats, accounts: [bank, card], today: TODAY };
+    const r = parseQuickEntry('cantina', c2);
+    expect(r.ok && r.draft).toMatchObject({ amount: 15.5, category_id: 'food', keyword: 'cantina', description: 'Cantina' });
+    const r3 = parseQuickEntry('cantina 2x nubank cartão', c2);
+    expect(r3.ok && r3.draft.amount).toBe(15.5);
+    const typed = parseQuickEntry('20 cantina', c2); // valor digitado vence o padrão
+    expect(typed.ok && typed.draft.amount).toBe(20);
+  });
+  it('sem valor e sem padrão: devolve o rascunho para abrir os detalhes', () => {
+    const cats = [cat({ id: 'food', name: 'Alimentação', keywords: ['mercado'] })];
+    const r = parseQuickEntry('mercado #casa', { categories: cats, accounts: [bank, card], today: TODAY });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.partial).toMatchObject({ category_id: 'food', description: 'Mercado', tags: ['casa'] });
+  });
   it('formatos de valor', () => {
     expect(parseAmount('1.200,50')).toBe(1200.5);
     expect(parseAmount('R$15')).toBe(15);
