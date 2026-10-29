@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Bell, ChevronRight, Download, Smartphone, Eye, FileJson, Landmark, LogOut, Palette, Pencil, Repeat, Tags } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Bell, ChevronRight, Download, Smartphone, Eye, FileJson, Landmark, LogOut, Palette, Pencil, Repeat, Tags, ListChecks } from 'lucide-react';
 import { useStore } from '../store';
 import { Segmented, Switch } from '../ui/common';
 import { usePrivacy } from '../ui/privacy';
@@ -19,6 +19,7 @@ export const applyTheme = (t: Theme) => {
 
 export function More() {
   const s = useStore();
+  const nav = useNavigate();
   const { hidden, toggle } = usePrivacy();
   const [theme, setTheme] = useState<Theme>(() => {
     try { return (localStorage.getItem(THEME_KEY) as Theme) || 'auto'; } catch { return 'auto'; }
@@ -85,6 +86,13 @@ export function More() {
       <span className="group-title">Preferências</span>
       <div className="group">
         <div className="item"><span className="ico"><Eye size={19} /></span><span className="main"><b>Ocultar valores</b><small>Esconde saldos e valores</small></span><Switch checked={hidden} onChange={toggle} label="Ocultar valores" /></div>
+        <button className="item" onClick={() => {
+          try { localStorage.removeItem('bolso:steps-off'); localStorage.removeItem('bolso:install-off'); localStorage.setItem('bolso:steps-force', '1'); } catch { /* sem armazenamento */ }
+          nav('/');
+        }}>
+          <span className="ico"><ListChecks size={19} /></span><span className="main"><b>Mostrar primeiros passos</b><small>Traz de volta o tutorial e a dica de instalação no Início</small></span>
+          <ChevronRight className="chev" size={18} />
+        </button>
         <div className="item" style={{ flexWrap: 'wrap' }}>
           <span className="ico"><Palette size={19} /></span><span className="main"><b>Aparência</b></span>
           <div style={{ flexBasis: '100%' }}>

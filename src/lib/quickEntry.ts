@@ -16,7 +16,8 @@ export interface QuickDraft {
   keyword: string | null;
 }
 
-export type QuickResult = { ok: true; draft: QuickDraft } | { ok: false; reason: string };
+/** `partial` vem quando só falta o valor: serve para abrir o formulário já preenchido. */
+export type QuickResult = { ok: true; draft: QuickDraft } | { ok: false; reason: string; partial?: QuickDraft };
 
 const INCOME_WORDS = new Set(['recebi', 'receita', 'entrada', 'ganhei']);
 
@@ -83,8 +84,8 @@ export function parseQuickEntry(
     }
     rest.push(tok);
   }
-  if (amount === null) return { ok: false, reason: problem || 'Não achei um valor. Ex.: 50 mercado' };
-  if (installments > 1 && amount / installments < 0.01) return { ok: false, reason: `Valor pequeno demais para ${installments} parcelas (mínimo de R$ 0,01 cada).` };
+  if (amount === null && problem) return { ok: false, reason: problem };
+  if (amount !== null && installments > 1 && amount / installments < 0.01) return { ok: false, reason: `Valor pequeno demais para ${installments} parcelas (mínimo de R$ 0,01 cada).` };
 
   // conta: nome completo ou palavra única que identifique uma conta
   const live = ctx.accounts.filter((a) => !a.archived);
@@ -121,19 +122,30 @@ export function parseQuickEntry(
   }
   if (!keyword) keyword = words.map(norm).find((w) => !INCOME_WORDS.has(w)) ?? null;
 
+  // sem valor digitado: usa o valor padrão da palavra-chave, se ela tiver um
+  let usedDefault = false;
+  if (amount === null) {
+    for (const w of words) {
+      const n = norm(w);
+      const c = cats.find((c) => c.keywords.map(norm).includes(n));
+      const def = c?.keyword_defaults?.[n];
+      if (c && def && def > 0) { amount = def; category = c; keyword = n; usedDefault = true; break; }
+    }
+  }
+  if (usedDefault && installments > 1 && amount! / installments < 0.01) return { ok: false, reason: `Valor pequeno demais para ${installments} parcelas (mínimo de R$ 0,01 cada).` };
+
   let kind: QuickDraft['kind'] = 'expense';
   if (explicitIncome || words.some((w) => INCOME_WORDS.has(norm(w)))) kind = 'income';
   else if (!explicitExpense && category?.kind === 'income') kind = 'income';
   if (category && category.kind !== kind) category = null; // evita despesa em categoria de receita
 
   const description = capitalize(words.filter((w) => !INCOME_WORDS.has(norm(w))).join(' '));
-  return {
-    ok: true,
-    draft: {
-      kind, amount, date, description, tags: [...new Set(tags)], installments,
-      account_id: accountId, category_id: category?.id ?? null, keyword,
-    },
+  const draft: QuickDraft = {
+    kind, amount: amount ?? 0, date, description, tags: [...new Set(tags)], installments,
+    account_id: accountId, category_id: category?.id ?? null, keyword,
   };
+  if (amount === null) return { ok: false, reason: 'Não achei um valor. Ex.: 50 mercado', partial: draft };
+  return { ok: true, draft };
 }
 
 export { parseISO };

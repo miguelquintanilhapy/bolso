@@ -24,6 +24,8 @@ export interface Category {
   icon: string;
   color: string;
   keywords: string[];
+  /** valor padrão por palavra-chave (chave já normalizada), usado quando o campo rápido vem sem valor */
+  keyword_defaults?: Record<string, number>;
   budget_limit: number | null;
   archived: boolean;
 }

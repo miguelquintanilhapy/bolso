@@ -85,7 +85,7 @@ export function Home() {
   // contas que aceitam lançamento (investimento não): aparecem como ícones sob o campo rápido
   const quickChoices = live.filter((a) => a.kind !== 'investment');
   const defaultQuick = quickChoices.find((a) => a.is_default) ?? quickChoices.find((a) => a.kind === 'checking') ?? quickChoices[0];
-  const showSteps = !stepsHidden && doneCount < steps.length;
+  const showSteps = !stepsHidden && (doneCount < steps.length || LS('bolso:steps-force'));
   const { mode: installMode, install } = useInstall();
   const showInstall = !installHidden && installMode !== 'none';
 
@@ -93,7 +93,16 @@ export function Home() {
     e.preventDefault();
     if (!text.trim() || sending.current) return;
     const r = parseQuickEntry(text, { categories: s.categories, accounts: s.accounts, today: s.today });
-    if (!r.ok) return s.toast(r.reason);
+    if (!r.ok) {
+      // só falta o valor (e não há valor padrão na palavra): abre o formulário completo já preenchido
+      const p = r.partial;
+      if (p && (p.description || p.tags.length)) {
+        const acc = quickAcc ?? p.account_id ?? undefined;
+        setText(''); setQuickAcc(null);
+        return newTx({ kind: p.kind, description: p.description, account_id: acc, date: p.date, installments: p.installments, tags: p.tags, category_id: p.category_id, keyword: p.keyword });
+      }
+      return s.toast(r.reason);
+    }
     const d = r.draft;
     // a conta escolhida nos ícones vale mais que qualquer nome no texto; sem escolha, vale o nome no texto e, por fim, a conta padrão
     const picked = quickAcc ? live.find((a) => a.id === quickAcc && a.kind !== 'investment') : undefined;
@@ -231,7 +240,7 @@ export function Home() {
                   </button>
                 ))}
               </div>
-              <button className="link" style={{ marginTop: 6 }} onClick={() => { setLS('bolso:steps-off'); setStepsHidden(true); }}>Ocultar</button>
+              <button className="link" style={{ marginTop: 6 }} onClick={() => { setLS('bolso:steps-off'); try { localStorage.removeItem('bolso:steps-force'); } catch { /* sem armazenamento */ } setStepsHidden(true); }}>Ocultar</button>
             </section>
           )}
 
