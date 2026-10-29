@@ -754,6 +754,27 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   await tagRow.click(); await mp.waitForSelector('.swipe');
   const filtered = await mp.locator('.swipe').allInnerTexts();
   check('tags: tocar abre o Extrato já filtrado pela tag', filtered.length === 2 && filtered.every((t) => /#viagem/.test(t)), filtered.length + ' linhas');
+
+  // valor padrão por palavra-chave (lista vertical) e tutorial reexibível
+  await go('/categorias'); await mp.waitForSelector('.item');
+  await mp.click('.item:has-text("Alimentação")'); await mp.waitForSelector('.sheet');
+  const rows = mp.locator('.sheet .kw-row');
+  check('palavras-chave: uma por linha (lista vertical)', (await rows.count()) >= 3 && (await rows.nth(0).boundingBox()).y < (await rows.nth(1).boundingBox()).y);
+  await mp.fill('.sheet input[placeholder^="Nova palavra"]', 'cantina'); await mp.click('.sheet .kw-add');
+  await money(mp, '.sheet .kw-row:has(input[value="cantina"]) .kw-val', '15,50');
+  await mp.click('.sheet .foot-actions .btn.primary'); await mp.waitForSelector('.sheet', { state: 'detached' });
+  await go('/'); await mp.waitForSelector('.hero');
+  await mp.fill(q, 'cantina'); await mp.press(q, 'Enter'); await mp.waitForSelector('.toast');
+  check('valor padrão: digitar só "cantina" lança R$ 15,50', /15,50/.test(await mp.locator('.toast').first().innerText()), await mp.locator('.toast').first().innerText());
+  await mp.fill(q, 'zzzsemvalor'); await mp.press(q, 'Enter'); await mp.waitForSelector('.sheet');
+  check('sem valor e sem padrão: abre o formulário com a descrição', (await mp.inputValue('.sheet input[placeholder*="escri"]').catch(() => '')).toLowerCase().includes('zzzsemvalor') || /Zzzsemvalor/.test(await mp.locator('.sheet').innerText() + await mp.locator('.sheet input').evaluateAll((els) => els.map((e) => e.value).join('|'))));
+  await esc(mp);
+  await go('/'); await mp.waitForSelector('.hero');
+  const stepsBtn = mp.locator('button:has-text("Ocultar")');
+  if (await stepsBtn.count()) { await stepsBtn.first().click(); }
+  check('tutorial: depois de ocultar, some do Início', (await mp.locator('section[aria-label="Primeiros passos"]').count()) === 0);
+  await go('/mais'); await mp.click('.item:has-text("Mostrar primeiros passos")'); await mp.waitForSelector('.hero');
+  check('tutorial: "Mostrar primeiros passos" em Mais traz de volta', (await mp.locator('section[aria-label="Primeiros passos"]').count()) === 1);
   await mctx.close();
 }
 

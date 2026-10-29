@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Check, Plus, Trash2 } from 'lucide-react';
+import { Check, Plus, Trash2, X } from 'lucide-react';
 import { useStore } from '../store';
 import { Sheet, SheetClosing } from './Sheet';
 import { useConfirm } from './confirm';
@@ -668,7 +668,15 @@ function CategoryEditor({ id, kind: initKind, onClose }: { id?: string; kind?: '
   const [kind, setKind] = useState<'expense' | 'income'>(existing?.kind ?? initKind ?? 'expense');
   const [icon, setIcon] = useState(existing?.icon ?? 'tag');
   const [color, setColor] = useState(existing?.color ?? COLORS[0]);
-  const [keywords, setKeywords] = useState((existing?.keywords ?? []).join(', '));
+  // palavras-chave, uma por linha, cada uma com um valor padrão opcional (usado quando o campo rápido vem sem valor)
+  const [kws, setKws] = useState<{ word: string; value: string }[]>(() =>
+    (existing?.keywords ?? []).map((w) => ({ word: w, value: existing?.keyword_defaults?.[norm(w)] ? String(existing.keyword_defaults[norm(w)]).replace('.', ',') : '' })));
+  const [newWord, setNewWord] = useState('');
+  const addWord = () => {
+    const w = norm(newWord.trim().replace(/\s+/g, ' '));
+    if (w && !kws.some((k) => norm(k.word) === w)) setKws([...kws, { word: w, value: '' }]);
+    setNewWord('');
+  };
   const [budget, setBudget] = useState(existing?.budget_limit ? String(existing.budget_limit).replace('.', ',') : '');
   const [error, setError] = useState('');
   const sending = useRef(false);
@@ -678,11 +686,21 @@ function CategoryEditor({ id, kind: initKind, onClose }: { id?: string; kind?: '
     if (!name.trim()) return setError('Dê um nome para a categoria.');
     const limit = budget.trim() ? parseAmount(budget) : null;
     if (budget.trim() && limit === null) return setError(amountError(budget));
+    const all = newWord.trim() ? [...kws, { word: newWord, value: '' }] : kws;
+    const words = [...new Set(all.map((k) => norm(k.word.trim()).replace(/\s+/g, ' ')).filter(Boolean))];
+    const defaults: Record<string, number> = {};
+    for (const k of all) {
+      const w = norm(k.word.trim()).replace(/\s+/g, ' ');
+      const v = k.value ? parseAmount(k.value) : null;
+      if (w && v && v > 0) defaults[w] = v;
+    }
     sending.current = true;
     try {
       await s.save<Category>('categories', {
         ...(existing ? { id: existing.id } : {}), name: name.trim(), kind, icon, color,
-        keywords: [...new Set(keywords.split(/[,\n]/).map((k) => norm(k.trim())).filter(Boolean))],
+        keywords: words,
+        // só envia quando há o que guardar (quem não usa valor padrão não depende da atualização do banco)
+        ...(Object.keys(defaults).length || existing?.keyword_defaults && Object.keys(existing.keyword_defaults).length ? { keyword_defaults: defaults } : {}),
         budget_limit: kind === 'expense' ? limit : null, archived: existing?.archived ?? false,
       });
       onClose();
@@ -697,7 +715,7 @@ function CategoryEditor({ id, kind: initKind, onClose }: { id?: string; kind?: '
     await s.removeCategoryWithUndo(existing);
   };
 
-  const guardedClose = useGuardedClose(onClose, { name, kind, icon, color, keywords, budget });
+  const guardedClose = useGuardedClose(onClose, { name, kind, icon, color, kws, newWord, budget });
   return (
     <Sheet title={existing ? 'Editar categoria' : 'Nova categoria'} onClose={guardedClose}
       footer={
@@ -711,8 +729,23 @@ function CategoryEditor({ id, kind: initKind, onClose }: { id?: string; kind?: '
       {kind === 'expense' && (
         <Field label="Limite mensal (R$, opcional)"><MoneyInput className="input" value={budget} onChange={setBudget} placeholder="Sem limite" /></Field>
       )}
-      <Field label="Palavras-chave do campo rápido (separe por vírgula)">
-        <input className="input" value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="mercado, padaria, ifood" />
+      <Field label="Palavras-chave do campo rápido">
+        <div className="kw-list">
+          {kws.map((k, i) => (
+            <div key={i} className="kw-row">
+              <input className="input kw-word" value={k.word} aria-label="Palavra-chave" onChange={(e) => setKws(kws.map((x, j) => (j === i ? { ...x, word: e.target.value } : x)))} />
+              <MoneyInput className="input kw-val" aria-label={`Valor padrão de ${k.word}`} value={k.value} placeholder="Valor padrão"
+                onChange={(v) => setKws(kws.map((x, j) => (j === i ? { ...x, value: v } : x)))} />
+              <button type="button" className="icon-btn kw-del" aria-label={`Remover ${k.word}`} onClick={() => setKws(kws.filter((_, j) => j !== i))}><X size={16} /></button>
+            </div>
+          ))}
+          <div className="kw-row">
+            <input className="input kw-word" value={newWord} placeholder="Nova palavra (ex.: cantina)" onChange={(e) => setNewWord(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addWord(); } }} />
+            <button type="button" className="btn kw-add" onClick={addWord} disabled={!newWord.trim()}><Plus size={16} /> Adicionar</button>
+          </div>
+        </div>
+        <p className="muted" style={{ fontSize: 13, paddingLeft: 4 }}>Com um valor padrão, digitar só a palavra no campo rápido (ex.: “cantina”) já lança esse valor.</p>
       </Field>
       <Field label="Ícone">
         <div className="icon-grid">
