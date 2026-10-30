@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, GripVertical, Plus, Sparkles, X } from 'lucide-react';
 import { useStore } from '../store';
@@ -14,27 +14,85 @@ import type { Category } from '../lib/types';
 const DISMISS_KEY = 'bolso:sug-dismissed';
 const readDismissed = (): string[] => { try { return JSON.parse(localStorage.getItem(DISMISS_KEY) ?? '[]'); } catch { return []; } };
 
-/** Lista com alças: arraste pela alça (ou use ↑ ↓ no teclado) para mudar a ordem. */
+const SETTLE = 'transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)';
+
+/** Lista com alças: arraste pela alça (ou use ↑ ↓ no teclado) para mudar a ordem. A linha segue o dedo e as outras deslizam para o lugar. */
 function ReorderList({ cats, onCommit }: { cats: Category[]; onCommit: (ids: string[]) => void }) {
   const [ids, setIds] = useState(() => cats.map((c) => c.id));
   const [dragging, setDragging] = useState<string | null>(null);
   const idsRef = useRef(ids);
+  const box = useRef<HTMLDivElement>(null);
   const rows = useRef(new Map<string, HTMLElement>());
+  const tops = useRef(new Map<string, number>()); // posição de cada linha no layout (sem contar transformações)
+  const drag = useRef<{ id: string; grab: number; y: number; dy: number } | null>(null);
+  const reduce = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const set = (next: string[]) => { idsRef.current = next; setIds(next); };
+
+  // a linha arrastada fica sob o dedo, mesmo quando o lugar dela na lista muda
+  const place = () => {
+    const d = drag.current;
+    const el = d && rows.current.get(d.id);
+    if (!d || !el) return;
+    const layoutTop = el.getBoundingClientRect().top - d.dy;
+    d.dy = d.y - d.grab - layoutTop;
+    el.style.transform = `translateY(${d.dy}px)`;
+  };
+  // para onde a linha arrastada iria: a posição do dedo dentro da lista (em coordenadas de layout, estáveis durante as animações)
+  const update = () => {
+    const d = drag.current;
+    if (!d || !box.current) return;
+    const rel = d.y - box.current.getBoundingClientRect().top;
+    const cur = idsRef.current;
+    // posições calculadas pela ordem atual (o DOM só atualiza no próximo quadro, então não dá para ler offsetTop aqui)
+    let acc = 0;
+    const layout = cur.map((x) => { const h = rows.current.get(x)?.offsetHeight ?? 0; const r = { top: acc, h }; acc += h; return r; });
+    let to = layout.findIndex((r) => rel >= r.top && rel <= r.top + r.h);
+    if (to < 0) to = rel < 0 ? 0 : cur.length - 1;
+    const from = cur.indexOf(d.id);
+    if (to !== from) set(moveItem(cur, from, to));
+    place();
+  };
+
+  // as outras linhas deslizam até o novo lugar (FLIP) em vez de pular
+  useLayoutEffect(() => {
+    rows.current.forEach((el, id) => {
+      if (!el.isConnected) { rows.current.delete(id); tops.current.delete(id); return; }
+      const prev = tops.current.get(id);
+      const top = el.offsetTop;
+      tops.current.set(id, top);
+      if (prev === undefined || prev === top || id === drag.current?.id || reduce) return;
+      el.style.transition = 'none';
+      el.style.transform = `translateY(${prev - top}px)`;
+      void el.offsetHeight; // aplica o ponto de partida antes de animar
+      el.style.transition = SETTLE;
+      el.style.transform = '';
+    });
+    place();
+  }, [ids]);
 
   const start = (e: React.PointerEvent, id: string) => {
     e.preventDefault();
+    const el = rows.current.get(id);
+    if (!el) return;
+    drag.current = { id, grab: e.clientY - el.getBoundingClientRect().top, y: e.clientY, dy: 0 };
+    el.style.transition = 'none';
     setDragging(id);
-    const move = (ev: PointerEvent) => {
-      const cur = idsRef.current;
-      const to = cur.findIndex((x) => { const r = rows.current.get(x)?.getBoundingClientRect(); return !!r && ev.clientY >= r.top && ev.clientY <= r.bottom; });
-      const from = cur.indexOf(id);
-      if (to >= 0 && to !== from) set(moveItem(cur, from, to));
-    };
+    const move = (ev: PointerEvent) => { if (drag.current) { drag.current.y = ev.clientY; update(); } };
+    // perto da borda da tela, a página rola sozinha enquanto o dedo está ali
+    const timer = window.setInterval(() => {
+      const d = drag.current;
+      if (!d) return;
+      const edge = d.y < 110 ? -14 : d.y > innerHeight - 150 ? 14 : 0;
+      if (edge) { scrollBy(0, edge); update(); }
+    }, 16);
     const end = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', end);
       window.removeEventListener('pointercancel', end);
+      clearInterval(timer);
+      const row = rows.current.get(id);
+      if (row) { row.style.transition = reduce ? 'none' : SETTLE; row.style.transform = ''; } // assenta no lugar
+      drag.current = null;
       setDragging(null);
       onCommit(idsRef.current);
     };
@@ -51,7 +109,7 @@ function ReorderList({ cats, onCommit }: { cats: Category[]; onCommit: (ids: str
   };
 
   return (
-    <div className="group">
+    <div className="group reorder-box" ref={box}>
       {ids.map((id) => {
         const c = cats.find((x) => x.id === id)!;
         return (
