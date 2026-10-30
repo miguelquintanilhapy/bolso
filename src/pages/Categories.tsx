@@ -34,7 +34,10 @@ function ReorderList({ cats, onCommit }: { cats: Category[]; onCommit: (ids: str
     const el = d && rows.current.get(d.id);
     if (!d || !el) return;
     const layoutTop = el.getBoundingClientRect().top - d.dy;
-    d.dy = d.y - d.grab - layoutTop;
+    // a linha não sai da lista: fica entre o topo e a base da caixa
+    const area = box.current?.getBoundingClientRect();
+    const want = d.y - d.grab - layoutTop;
+    d.dy = area ? Math.min(Math.max(want, area.top - layoutTop), area.bottom - el.offsetHeight - layoutTop) : want;
     el.style.transform = `translateY(${d.dy}px)`;
   };
   // para onde a linha arrastada iria: a posição do dedo dentro da lista (em coordenadas de layout, estáveis durante as animações)
