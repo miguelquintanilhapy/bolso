@@ -902,9 +902,18 @@ kbd { font-size: 11px; }
 
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
-.kw-list { display: flex; flex-direction: column; gap: 8px; }
-.kw-row { display: flex; align-items: center; gap: 8px; }
-.kw-row .kw-word { flex: 1 1 0; min-width: 0; }
-.kw-row .kw-val { flex: 0 0 120px; width: 120px; text-align: right; }
-.kw-row .kw-del { flex: none; width: 36px; height: 36px; box-shadow: none; background: var(--card-2); }
-.kw-row .kw-add { flex: none; height: 44px; }
+.kw-add-row { display: flex; gap: 8px; align-items: center; }
+.kw-add-row .input { flex: 1; min-width: 0; }
+.kw-plus { flex: none; width: 44px; height: 44px; box-shadow: none; background: var(--card-2); }
+.kw-plus:disabled { opacity: 0.4; }
+.kw-group { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; margin-top: 4px; }
+.kw-item + .kw-item, .kw-more { border-top: 0.5px solid var(--line); }
+.kw-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 46px; padding: 0 14px; text-align: left; }
+.kw-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kw-badge { flex: none; font-size: 13px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--green-bg); color: var(--green); font-variant-numeric: tabular-nums; }
+.kw-none { flex: none; font-size: 13px; color: var(--text-2); }
+.kw-item.open { background: var(--card-2); }
+.kw-edit { display: flex; flex-direction: column; gap: 8px; padding: 0 12px 12px; }
+.kw-edit .input { background: var(--card); }
+.kw-remove { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; color: var(--red); font-size: 14px; font-weight: 500; padding: 6px 4px; }
+.kw-more { width: 100%; height: 44px; font-size: 14px; color: var(--text-2); }

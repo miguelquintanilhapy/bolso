@@ -130,6 +130,9 @@ check('barra: indicador desliza para a aba ativa (--i = 1)', (await page.locator
 check('barra: todas as abas têm rótulo visível', (await page.locator('nav.nav a span').evaluateAll((els) => els.every((e) => getComputedStyle(e).display !== 'none' && e.textContent.trim()))));
 
 // pagar com um toque
+// no fim do mês, o pendente da demonstração (daqui a 2 dias) cai no mês seguinte
+let advanced = false;
+if (!(await page.locator('.pay-btn').count())) { await page.click('button[aria-label="Próximo mês"]'); await page.waitForTimeout(400); advanced = true; }
 const payBtn = page.locator('.pay-btn').first();
 check('pendentes mostram botão "Pagar" na própria linha', await payBtn.count() > 0);
 const pendingBefore = await page.locator('.pay-btn').count();
@@ -139,6 +142,7 @@ await page.waitForTimeout(300);
 check('pagar com um toque remove o botão da linha', (await page.locator('.pay-btn').count()) === pendingBefore - 1);
 await page.click('.toast button'); await page.waitForTimeout(300);
 check('desfazer volta a ficar pendente', (await page.locator('.pay-btn').count()) === pendingBefore);
+if (advanced) { await page.click('button[aria-label="Mês anterior"]'); await page.waitForTimeout(400); }
 
 // formulário: sugestão de categoria, atalho "Ontem", Enter salva, rodapé fixo
 await page.click('button[aria-label="Novo lançamento"], button.nav-new');
@@ -339,8 +343,11 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
     check('ux: receita futura aparece como "Entra em…"', /Entra/.test(rowText), rowText);
     check('ux: receita futura não aparece como "Vence"', !/Vence|Atrasad/.test(rowText), rowText);
     await goto('/lancamentos'); await ux.waitForSelector('.swipe');
+    const nextMonth = d.getMonth() !== new Date().getMonth(); // no fim do mês a receita cai no mês seguinte
+    if (nextMonth) { await ux.click('button[aria-label="Próximo mês"]'); await ux.waitForTimeout(400); }
     const ext = await ux.locator('.swipe:has-text("3.000,00"):has(.pay-btn)').first().innerText().catch(() => '');
     check('ux: no extrato a receita pendente diz "entra" e o botão é "Receber"', /entra/i.test(ext) && /Receber/.test(ext) && !/vence/i.test(ext), ext);
+    if (nextMonth) { await ux.click('button[aria-label="Mês anterior"]'); await ux.waitForTimeout(300); }
     await goto('/');
   }
 
@@ -758,10 +765,11 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   // valor padrão por palavra-chave (lista vertical) e tutorial reexibível
   await go('/categorias'); await mp.waitForSelector('.item');
   await mp.click('.item:has-text("Alimentação")'); await mp.waitForSelector('.sheet');
-  const rows = mp.locator('.sheet .kw-row');
+  const rows = mp.locator('.sheet .kw-item');
   check('palavras-chave: uma por linha (lista vertical)', (await rows.count()) >= 3 && (await rows.nth(0).boundingBox()).y < (await rows.nth(1).boundingBox()).y);
-  await mp.fill('.sheet input[placeholder^="Nova palavra"]', 'cantina'); await mp.click('.sheet .kw-add');
-  await money(mp, '.sheet .kw-row:has(input[value="cantina"]) .kw-val', '15,50');
+  await mp.fill('.sheet input[placeholder^="Nova palavra"]', 'cantina'); await mp.click('.sheet button[aria-label="Adicionar palavra"]');
+  await money(mp, '.sheet .kw-edit input[aria-label^="Valor padrão"]', '15,50');
+  check('palavras-chave: valor padrão aparece como selo na linha', /15,50/.test(await mp.locator('.sheet .kw-item').first().innerText()));
   await mp.click('.sheet .foot-actions .btn.primary'); await mp.waitForSelector('.sheet', { state: 'detached' });
   await go('/'); await mp.waitForSelector('.hero');
   await mp.fill(q, 'cantina'); await mp.press(q, 'Enter'); await mp.waitForSelector('.toast');
