@@ -924,4 +924,4 @@ kbd { font-size: 11px; }
 .look-chev { color: var(--muted); transition: transform 0.2s ease; }
 .look-chev.open { transform: rotate(180deg); }
 .look-panel { display: flex; flex-direction: column; gap: 14px; padding-top: 10px; }
-.look-trigger .ico { border-radius: 14px; width: 44px; height: 44px; }
+.look-trigger .ico { display: grid; place-items: center; border-radius: 14px; width: 44px; height: 44px; }
