@@ -783,6 +783,57 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   check('tutorial: depois de ocultar, some do Início', (await mp.locator('section[aria-label="Primeiros passos"]').count()) === 0);
   await go('/mais'); await mp.click('.item:has-text("Mostrar primeiros passos")'); await mp.waitForSelector('.hero');
   check('tutorial: "Mostrar primeiros passos" em Mais traz de volta', (await mp.locator('section[aria-label="Primeiros passos"]').count()) === 1);
+
+  // lista de categorias: gasto do mês, sugestões, ordem, arquivar e mesclar ao apagar
+  await go('/categorias'); await mp.waitForSelector('.item');
+  check('categorias: a lista mostra o limite com barra de uso', (await mp.locator('.item .meter.slim').count()) > 0);
+  check('categorias: a lista não despeja as palavras-chave', !/aluguel, condominio/.test(await mp.locator('.screen').innerText()));
+  await mp.click('.item:has-text("Alimentação")'); await mp.waitForSelector('.sheet');
+  await mp.fill('.sheet input[placeholder^="Nova palavra"]', 'pastel'); await mp.click('.sheet button[aria-label="Adicionar palavra"]');
+  await mp.click('.sheet .foot-actions .btn.primary'); await mp.waitForSelector('.sheet', { state: 'detached' });
+  await go('/'); await mp.waitForSelector('.hero');
+  for (const d of ['hoje', 'ontem', 'anteontem']) { await mp.fill(q, `7 pastel ${d}`); await mp.press(q, 'Enter'); await mp.waitForTimeout(500); }
+  await go('/categorias'); await mp.waitForSelector('.suggest');
+  // a demonstração já tem repetições (aluguel, internet…): dispensa até aparecer a do pastel
+  for (let i = 0; i < 12 && !(await mp.locator('.suggest-row:has-text("pastel")').count()); i++) {
+    if (!(await mp.locator('.suggest-x').count())) break;
+    await mp.click('.suggest-x >> nth=0'); await mp.waitForTimeout(250);
+  }
+  await mp.waitForSelector('.suggest-row:has-text("pastel")');
+  check('sugestões: "pastel" costuma ser R$ 7,00', /pastel/.test(await mp.locator('.suggest').innerText()) && /7,00/.test(await mp.locator('.suggest').innerText()), await mp.locator('.suggest').innerText());
+  await mp.click('.suggest-row:has-text("pastel") .btn'); await mp.waitForSelector('.toast:has-text("pastel")');
+  check('sugestões: aceitar some da lista', (await mp.locator('.suggest-row:has-text("pastel")').count()) === 0);
+  await go('/'); await mp.waitForSelector('.hero');
+  await mp.fill(q, 'pastel 02/10'); await mp.press(q, 'Enter'); await mp.waitForSelector('.toast:has-text("7,00")');
+  check('sugestões: o valor padrão aceito já vale no campo rápido', true);
+
+  await go('/categorias'); await mp.waitForSelector('.item');
+  const firstName = async () => (await mp.locator('.split-col').first().locator('.item b').first().innerText()).trim();
+  const before = await firstName();
+  await mp.click('.split-col >> nth=0 >> button:has-text("Reordenar")');
+  await mp.focus('.reorder-row .grip >> nth=0'); await mp.keyboard.press('ArrowDown');
+  await mp.click('.split-col >> nth=0 >> button:has-text("Concluir")'); await mp.waitForSelector('.item .side');
+  check('ordem: mover para baixo troca a primeira categoria', (await firstName()) !== before, before);
+  await go('/'); await go('/categorias'); await mp.waitForSelector('.item');
+  check('ordem: continua depois de reabrir a tela', (await firstName()) !== before);
+
+  await mp.click('.item:has-text("Educação")'); await mp.waitForSelector('.sheet');
+  await mp.click('.sheet button:has-text("Arquivar categoria")'); await mp.waitForSelector('.sheet', { state: 'detached' });
+  check('arquivar: sai da lista e aparece em "Arquivadas"', (await mp.locator('.item:has-text("Educação")').count()) === 0 && (await mp.locator('.archived-toggle').count()) === 1);
+  await mp.click('.archived-toggle'); await mp.click('.item.archived:has-text("Educação")'); await mp.waitForSelector('.sheet');
+  await mp.click('.sheet button:has-text("Reativar categoria")'); await mp.waitForSelector('.sheet', { state: 'detached' });
+  check('arquivar: reativar devolve a categoria', (await mp.locator('.item:has-text("Educação")').count()) === 1);
+
+  const lazerCount = await mp.locator('.item').count();
+  await mp.click('.item:has-text("Lazer")'); await mp.waitForSelector('.sheet');
+  await mp.click('.sheet button:has-text("Apagar categoria")');
+  await mp.waitForSelector('.sheet section[aria-label="Apagar categoria"]');
+  check('apagar com uso: pergunta o que fazer, e "Mover" só vale com destino', await mp.locator('.sheet button:has-text("Mover e apagar")').isDisabled());
+  await mp.click('.sheet section .chip:has-text("Compras")'); await mp.click('.sheet button:has-text("Mover e apagar")');
+  await mp.waitForSelector('.toast:has-text("movido")');
+  check('apagar com uso: lançamentos vão para a outra categoria', (await mp.locator('.item').count()) === lazerCount - 1 && /Compras/.test(await mp.locator('.toast').first().innerText()));
+  await mp.click('.toast button:has-text("Desfazer")'); await mp.waitForTimeout(600);
+  check('apagar com uso: desfazer devolve a categoria', (await mp.locator('.item').count()) === lazerCount);
   await mctx.close();
 }
 

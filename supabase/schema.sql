@@ -184,6 +184,7 @@ create policy "own rows" on public.investment_snapshots for all to authenticated
 -- Categorias aceitas por conta/cartão (ex.: um vale-refeição só aceita Alimentação, Lazer e Transporte)
 -- ============================================================
 alter table public.accounts add column if not exists allowed_category_ids uuid[];
+alter table public.categories add column if not exists sort_order integer;
 alter table public.categories add column if not exists keyword_defaults jsonb not null default '{}'::jsonb;
 
 create or replace function public.enforce_account_categories()

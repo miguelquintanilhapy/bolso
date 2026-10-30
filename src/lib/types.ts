@@ -24,6 +24,8 @@ export interface Category {
   icon: string;
   color: string;
   keywords: string[];
+  /** posição escolhida na lista de categorias (menor = mais acima) */
+  sort_order?: number | null;
   /** valor padrão por palavra-chave (chave já normalizada), usado quando o campo rápido vem sem valor */
   keyword_defaults?: Record<string, number>;
   budget_limit: number | null;

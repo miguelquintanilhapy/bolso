@@ -489,6 +489,7 @@ function AccountEditor({ id, thenTx, reopenTx, onClose }: { id?: string; thenTx?
   const [limit, setLimit] = useState(existing?.credit_limit ? String(existing.credit_limit).replace('.', ',') : '');
   const [color, setColor] = useState(existing?.color ?? KIND_INFO.checking.color);
   const [colorTouched, setColorTouched] = useState(!!existing);
+  const [colorOpen, setColorOpen] = useState(false);
   const [isDefault, setIsDefault] = useState(existing?.is_default ?? !s.accounts.some((a) => a.is_default));
   const [limitCats, setLimitCats] = useState(isRestricted(existing));
   const [allowedIds, setAllowedIds] = useState<string[]>(() => (existing?.allowed_category_ids ?? []).filter((id) => s.categories.some((c) => c.id === id)));
@@ -642,9 +643,16 @@ function AccountEditor({ id, thenTx, reopenTx, onClose }: { id?: string; thenTx?
         </div>
       )}
       <Field label="Cor">
-        <div className="swatches">
+        <button type="button" className="look-trigger" aria-expanded={colorOpen} onClick={() => setColorOpen(!colorOpen)}>
+          <span className="ico" style={{ background: color }} aria-hidden />
+          <span className="look-text">{colorOpen ? 'Fechar' : 'Alterar cor'}</span>
+          <ChevronDown size={18} className={`look-chev ${colorOpen ? 'open' : ''}`} />
+        </button>
+        {colorOpen && <div className="look-panel">
+          <div className="swatches">
           {COLORS.map((c) => <button key={c} type="button" aria-label={`Cor ${c}`} className={`swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => { setColor(c); setColorTouched(true); }} />)}
         </div>
+        </div>}
       </Field>
       {kind === 'checking' && (
         <div className="row-field"><span>Usar no lançamento rápido<small className="field-hint" style={{ display: 'block', padding: 0 }}>Onde caem os lançamentos do campo da tela inicial.</small></span><Switch checked={isDefault} onChange={setIsDefault} label="Usar no lançamento rápido" /></div>
@@ -712,10 +720,26 @@ function CategoryEditor({ id, kind: initKind, onClose }: { id?: string; kind?: '
       sending.current = false;
     }
   };
-  const del = async () => {
+  // quantos lançamentos e recorrências usam esta categoria: com uso, apagar pergunta o que fazer com eles
+  const usedTx = existing ? s.transactions.filter((t) => t.category_id === existing.id).length : 0;
+  const usedRec = existing ? s.recurrences.filter((r) => r.category_id === existing.id).length : 0;
+  const [deleting, setDeleting] = useState(false);
+  const [moveTo, setMoveTo] = useState<string | null>(null);
+  const targets = existing ? s.categories.filter((c) => c.kind === existing.kind && c.id !== existing.id && !c.archived) : [];
+  const del = async (toId?: string) => {
     if (!existing) return;
     onClose();
-    await s.removeCategoryWithUndo(existing);
+    await s.removeCategoryWithUndo(existing, toId);
+  };
+  const toggleArchive = async () => {
+    if (!existing) return;
+    try {
+      await s.save<Category>('categories', { id: existing.id, archived: !existing.archived });
+      s.toast(existing.archived ? `"${existing.name}" reativada` : `"${existing.name}" arquivada: some dos formulários, o histórico fica`);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não consegui salvar.');
+    }
   };
 
   const guardedClose = useGuardedClose(onClose, { name, kind, icon, color, kws, newWord, budget });
@@ -780,7 +804,33 @@ function CategoryEditor({ id, kind: initKind, onClose }: { id?: string; kind?: '
           </div>
         )}
       </Field>
-      {existing && <button className="btn danger block" onClick={del}><Trash2 size={18} /> Apagar categoria</button>}
+      {existing && !deleting && (
+        <div className="stack" style={{ marginTop: 8 }}>
+          <button className="btn block" onClick={() => void toggleArchive()}>{existing.archived ? 'Reativar categoria' : 'Arquivar categoria'}</button>
+          <button className="btn danger block" onClick={() => (usedTx + usedRec > 0 ? setDeleting(true) : void del())}><Trash2 size={18} /> Apagar categoria</button>
+        </div>
+      )}
+      {existing && deleting && (
+        <section className="card stack" style={{ gap: 12 }} aria-label="Apagar categoria">
+          <b>O que fazer com os {usedTx} lançamento{usedTx === 1 ? '' : 's'}{usedRec ? ` e ${usedRec} recorrência${usedRec === 1 ? '' : 's'}` : ''} de “{existing.name}”?</b>
+          {targets.length > 0 && (
+            <>
+              <span className="lbl">Mover para outra categoria (as palavras-chave vão junto)</span>
+              <div className="chips">
+                {targets.map((c) => (
+                  <button key={c.id} type="button" className={`chip ${moveTo === c.id ? 'active' : ''}`} aria-pressed={moveTo === c.id} onClick={() => setMoveTo(c.id)}>
+                    <CategoryIcon name={c.icon} size={16} /> {c.name}
+                  </button>
+                ))}
+              </div>
+              <button className="btn primary block" disabled={!moveTo} onClick={() => void del(moveTo ?? undefined)}>Mover e apagar</button>
+            </>
+          )}
+          <button className="btn block" onClick={() => void toggleArchive()}>Arquivar em vez de apagar</button>
+          <button className="btn danger block" onClick={() => void del()}>Apagar e deixar sem categoria</button>
+          <button className="link" onClick={() => { setDeleting(false); setMoveTo(null); }}>Cancelar</button>
+        </section>
+      )}
     </Sheet>
   );
 }
