@@ -925,3 +925,15 @@ kbd { font-size: 11px; }
 .look-chev.open { transform: rotate(180deg); }
 .look-panel { display: flex; flex-direction: column; gap: 14px; padding-top: 10px; }
 .look-trigger .ico { display: grid; place-items: center; border-radius: 14px; width: 44px; height: 44px; }
+
+.row-actions { display: inline-flex; gap: 14px; align-items: center; }
+.meter.slim { display: block; height: 6px; margin-top: 7px; }
+.reorder-row .grip { flex: none; width: 44px; height: 44px; display: grid; place-items: center; color: var(--muted); touch-action: none; cursor: grab; border-radius: 12px; }
+.reorder-row.dragging-row { background: var(--card-2); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18); position: relative; z-index: 1; }
+.suggest { display: flex; flex-direction: column; gap: 10px; }
+.suggest-title { display: flex; align-items: center; gap: 6px; font-size: 15px; }
+.suggest-row { display: flex; align-items: center; gap: 8px; }
+.suggest-text { flex: 1; min-width: 0; font-size: 14px; line-height: 1.35; color: var(--text-2); }
+.suggest-x { flex: none; width: 36px; height: 36px; box-shadow: none; background: var(--card-2); }
+.archived-toggle { display: inline-flex; align-items: center; gap: 4px; margin: 4px 6px; }
+.item.archived { opacity: 0.7; }
