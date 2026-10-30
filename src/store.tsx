@@ -44,7 +44,8 @@ interface Ctx extends Data {
   insertMany: <T extends Row>(table: Table, rows: object[]) => Promise<T[]>;
   remove: (table: Table, ids: string[]) => Promise<void>;
   /** Apaga e oferece "Desfazer" por alguns segundos. */
-  removeCategoryWithUndo: (category: Category) => Promise<void>;
+  /** Apaga a categoria; com `moveToId`, os lançamentos, recorrências e palavras-chave vão para essa outra categoria. */
+  removeCategoryWithUndo: (category: Category, moveToId?: string) => Promise<void>;
   removeWithUndo: (table: 'transactions' | 'recurrences' | 'investment_snapshots', rows: Row[], message: string) => Promise<void>;
   markRead: (ids: string[]) => Promise<void>;
   /** Exclui avisos da lista (ficam guardados como excluídos, para o mesmo aviso não voltar). */
@@ -262,22 +263,34 @@ export function StoreProvider({ user, children }: { user: SessionUser; children:
   }, [remove, toast, merge]);
 
   // apagar categoria: lançamentos e recorrências ficam sem categoria; "Desfazer" devolve tudo
-  const removeCategoryWithUndo = useCallback(async (category: Category) => {
+  const removeCategoryWithUndo = useCallback(async (category: Category, moveToId?: string) => {
     const copy = structuredClone(category) as unknown as Record<string, unknown>;
     const txIds = data.transactions.filter((t) => t.category_id === category.id).map((t) => t.id);
     const recIds = data.recurrences.filter((r) => r.category_id === category.id).map((r) => r.id);
+    const dest = moveToId ? data.categories.find((c) => c.id === moveToId) : undefined;
+    const mergedDefaults = dest ? { ...(category.keyword_defaults ?? {}), ...(dest.keyword_defaults ?? {}) } : {};
+    const hasDefaults = Object.keys(mergedDefaults).length > 0; // só mexe na coluna quando há o que guardar
+    const destBefore = dest ? { keywords: [...dest.keywords], ...(hasDefaults ? { keyword_defaults: { ...(dest.keyword_defaults ?? {}) } } : {}) } : null;
+    if (dest) {
+      // os lançamentos vão para a outra categoria, e as palavras-chave junto, para o campo rápido continuar acertando
+      for (const id of txIds) await db.update('transactions', id, { category_id: dest.id });
+      for (const id of recIds) await db.update('recurrences', id, { category_id: dest.id });
+      const keywords = [...new Set([...dest.keywords, ...category.keywords])];
+      await db.update('categories', dest.id, { keywords, ...(hasDefaults ? { keyword_defaults: mergedDefaults } : {}) });
+    }
     await db.remove('categories', [category.id]);
     await reload();
-    toast(`Categoria "${category.name}" apagada`, {
+    toast(dest ? `"${category.name}" apagada · ${txIds.length} lançamento${txIds.length === 1 ? '' : 's'} movido${txIds.length === 1 ? '' : 's'} para "${dest.name}"` : `Categoria "${category.name}" apagada`, {
       label: 'Desfazer',
       run: async () => {
         await db.insert<Row>('categories', [copy]);
+        if (dest && destBefore) await db.update('categories', dest.id, destBefore);
         for (const id of txIds) await db.update('transactions', id, { category_id: category.id });
         for (const id of recIds) await db.update('recurrences', id, { category_id: category.id });
         await reload();
       },
     });
-  }, [data.transactions, data.recurrences, reload, toast]);
+  }, [data.transactions, data.recurrences, data.categories, reload, toast]);
 
   const markRead = useCallback(async (ids: string[]) => {
     const targets = data.notifications.filter((n) => ids.includes(n.id) && !n.read);

@@ -9,6 +9,7 @@ import { addDays, addMonthsToDate, dayLabel, dateInMonth, diffDays, monthRange, 
 import { amountError, compactBRL, formatBRL, parseAmount, round2, splitBRL, typedToValue, valueToDisplay } from './money';
 import { parseQuickEntry } from './quickEntry';
 import { BANK_TEMPLATES, templateName } from './bankTemplates';
+import { moveItem, orderedCategories, suggestKeywords } from './suggestions';
 import { planRecurrences } from './recurrence';
 import { transactionsToCSV } from './exports';
 
@@ -438,5 +439,45 @@ describe('tags, ritmo do orçamento e modelos de conta', () => {
     expect(templateName(nu, 'checking')).toBe('Nubank');
     expect(new Set(BANK_TEMPLATES.map((t) => t.id)).size).toBe(BANK_TEMPLATES.length);
     expect(BANK_TEMPLATES.every((t) => /^#[0-9a-f]{6}$/i.test(t.color))).toBe(true);
+  });
+});
+
+describe('sugestões de palavra-chave e ordem das categorias', () => {
+  const mk = (o: Partial<Category>): Category => ({ id: 'c', name: 'C', kind: 'expense', icon: 'tag', color: '#000', keywords: [], budget_limit: null, archived: false, ...o });
+  const tx = (o: Partial<Transaction>): Transaction => ({
+    id: Math.random().toString(36).slice(2), kind: 'expense', amount: 10, date: '2026-10-05', description: '', notes: '', tags: [], status: 'paid',
+    account_id: 'a', to_account_id: null, category_id: null, installment_group: null, installment_number: null, installment_total: null,
+    recurrence_id: null, ref_month: null, invoice_ref: null, ...o,
+  } as Transaction);
+  const food = mk({ id: 'food', name: 'Alimentação', keywords: ['mercado'] });
+  const many = (desc: string, amounts: number[], category = 'food') => amounts.map((a) => tx({ description: desc, amount: a, category_id: category }));
+
+  it('palavra nova repetida 3x vira sugestão, com o valor que mais se repete', () => {
+    const r = suggestKeywords(many('Cantina', [15.5, 15.5, 15.5, 22]), [food]);
+    expect(r).toEqual([{ word: 'cantina', categoryId: 'food', count: 4, amount: 15.5, kind: 'new' }]);
+  });
+  it('sem valor que se repita, sugere só a palavra', () => {
+    expect(suggestKeywords(many('cantina', [10, 20, 30]), [food])[0]).toMatchObject({ word: 'cantina', amount: null, kind: 'new' });
+  });
+  it('menos de 3 usos, várias palavras ou categorias divididas não geram sugestão', () => {
+    expect(suggestKeywords(many('cantina', [5, 5]), [food])).toEqual([]);
+    expect(suggestKeywords(many('almoço no centro', [5, 5, 5]), [food])).toEqual([]);
+    const split = [...many('cantina', [5, 5], 'food'), ...many('cantina', [5, 5], 'other')];
+    expect(suggestKeywords(split, [food, mk({ id: 'other', name: 'Outros' })])).toEqual([]);
+  });
+  it('palavra que já é palavra-chave só sugere valor padrão, e não repete se já tem', () => {
+    const r = suggestKeywords(many('mercado', [80, 80, 80]), [food]);
+    expect(r).toEqual([{ word: 'mercado', categoryId: 'food', count: 3, amount: 80, kind: 'default' }]);
+    expect(suggestKeywords(many('mercado', [80, 80, 80]), [{ ...food, keyword_defaults: { mercado: 80 } }])).toEqual([]);
+  });
+  it('dispensadas e nome da própria categoria não voltam', () => {
+    expect(suggestKeywords(many('cantina', [5, 5, 5]), [food], ['cantina'])).toEqual([]);
+    expect(suggestKeywords(many('alimentacao', [5, 5, 5]), [food])).toEqual([]);
+  });
+  it('ordem: escolhida primeiro, o resto na ordem original; arquivadas ficam de fora', () => {
+    const a = mk({ id: 'a' }), b = mk({ id: 'b', sort_order: 0 }), c = mk({ id: 'c', sort_order: 1 }), d = mk({ id: 'd', archived: true }), inc = mk({ id: 'i', kind: 'income' });
+    expect(orderedCategories([a, b, c, d, inc], 'expense').map((x) => x.id)).toEqual(['b', 'c', 'a']);
+    expect(moveItem([1, 2, 3], 0, 2)).toEqual([2, 3, 1]);
+    expect(moveItem([1, 2, 3], 1, 5)).toEqual([1, 2, 3]);
   });
 });
