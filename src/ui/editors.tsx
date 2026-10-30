@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Check, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { Sheet, SheetClosing } from './Sheet';
 import { useConfirm } from './confirm';
@@ -672,6 +672,7 @@ function CategoryEditor({ id, kind: initKind, onClose }: { id?: string; kind?: '
   const [kws, setKws] = useState<{ word: string; value: string }[]>(() =>
     (existing?.keywords ?? []).map((w) => ({ word: w, value: existing?.keyword_defaults?.[norm(w)] ? String(existing.keyword_defaults[norm(w)]).replace('.', ',') : '' })));
   const [newWord, setNewWord] = useState('');
+  const [lookOpen, setLookOpen] = useState(false);
   const [openKw, setOpenKw] = useState<number | null>(null);
   const [showAllKw, setShowAllKw] = useState(false);
   const addWord = () => {
@@ -760,17 +761,24 @@ function CategoryEditor({ id, kind: initKind, onClose }: { id?: string; kind?: '
         )}
         <p className="muted" style={{ fontSize: 13, paddingLeft: 4 }}>Valor padrão: digitar só a palavra no campo rápido já lança esse valor.</p>
       </Field>
-      <Field label="Ícone">
-        <div className="icon-grid">
-          {Object.keys(CATEGORY_ICONS).map((k) => (
-            <button key={k} type="button" aria-label={k} className={icon === k ? 'active' : ''} onClick={() => setIcon(k)}><CategoryIcon name={k} size={20} /></button>
-          ))}
-        </div>
-      </Field>
-      <Field label="Cor">
-        <div className="swatches">
-          {COLORS.map((c) => <button key={c} type="button" aria-label={`Cor ${c}`} className={`swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />)}
-        </div>
+      <Field label="Ícone e cor">
+        <button type="button" className="look-trigger" aria-expanded={lookOpen} onClick={() => setLookOpen(!lookOpen)}>
+          <span className="ico" style={{ background: color, color: '#fff' }}><CategoryIcon name={icon} /></span>
+          <span className="look-text">{lookOpen ? 'Fechar' : 'Alterar ícone e cor'}</span>
+          <ChevronDown size={18} className={`look-chev ${lookOpen ? 'open' : ''}`} />
+        </button>
+        {lookOpen && (
+          <div className="look-panel">
+            <div className="icon-grid">
+              {Object.keys(CATEGORY_ICONS).map((k) => (
+                <button key={k} type="button" aria-label={k} aria-pressed={icon === k} className={icon === k ? 'active' : ''} onClick={() => setIcon(k)}><CategoryIcon name={k} size={20} /></button>
+              ))}
+            </div>
+            <div className="swatches">
+              {COLORS.map((c) => <button key={c} type="button" aria-label={`Cor ${c}`} aria-pressed={color === c} className={`swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />)}
+            </div>
+          </div>
+        )}
       </Field>
       {existing && <button className="btn danger block" onClick={del}><Trash2 size={18} /> Apagar categoria</button>}
     </Sheet>
