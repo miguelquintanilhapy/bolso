@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Check, Plus, Trash2, X } from 'lucide-react';
+import { Check, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { Sheet, SheetClosing } from './Sheet';
 import { useConfirm } from './confirm';
@@ -11,7 +11,7 @@ import { effectiveTime, launchInfo, validTime } from '../lib/launch';
 import { CATEGORY_ICONS, CategoryIcon, COLORS } from './icons';
 import type { Account, AccountKind, Category, NewTransaction, Recurrence, Snapshot, Transaction, TxKind } from '../lib/types';
 import { accountBalance, buildInstallments, buildInvoice, cardOverview, invoiceMonths } from '../lib/finance';
-import { amountError, formatBRL, parseAmount, round2 } from '../lib/money';
+import { amountError, formatBRL, parseAmount, round2, valueToDisplay } from '../lib/money';
 import { addDays, monthLabel, monthOf } from '../lib/dates';
 import { norm } from '../lib/quickEntry';
 import { allowedCategories, categoryAllowed, isRestricted, restrictionText } from '../lib/categoryRules';
@@ -672,9 +672,11 @@ function CategoryEditor({ id, kind: initKind, onClose }: { id?: string; kind?: '
   const [kws, setKws] = useState<{ word: string; value: string }[]>(() =>
     (existing?.keywords ?? []).map((w) => ({ word: w, value: existing?.keyword_defaults?.[norm(w)] ? String(existing.keyword_defaults[norm(w)]).replace('.', ',') : '' })));
   const [newWord, setNewWord] = useState('');
+  const [openKw, setOpenKw] = useState<number | null>(null);
+  const [showAllKw, setShowAllKw] = useState(false);
   const addWord = () => {
     const w = norm(newWord.trim().replace(/\s+/g, ' '));
-    if (w && !kws.some((k) => norm(k.word) === w)) setKws([...kws, { word: w, value: '' }]);
+    if (w && !kws.some((k) => norm(k.word) === w)) { setKws([{ word: w, value: '' }, ...kws]); setOpenKw(0); }
     setNewWord('');
   };
   const [budget, setBudget] = useState(existing?.budget_limit ? String(existing.budget_limit).replace('.', ',') : '');
@@ -730,22 +732,33 @@ function CategoryEditor({ id, kind: initKind, onClose }: { id?: string; kind?: '
         <Field label="Limite mensal (R$, opcional)"><MoneyInput className="input" value={budget} onChange={setBudget} placeholder="Sem limite" /></Field>
       )}
       <Field label="Palavras-chave do campo rápido">
-        <div className="kw-list">
-          {kws.map((k, i) => (
-            <div key={i} className="kw-row">
-              <input className="input kw-word" value={k.word} aria-label="Palavra-chave" onChange={(e) => setKws(kws.map((x, j) => (j === i ? { ...x, word: e.target.value } : x)))} />
-              <MoneyInput className="input kw-val" aria-label={`Valor padrão de ${k.word}`} value={k.value} placeholder="Valor padrão"
-                onChange={(v) => setKws(kws.map((x, j) => (j === i ? { ...x, value: v } : x)))} />
-              <button type="button" className="icon-btn kw-del" aria-label={`Remover ${k.word}`} onClick={() => setKws(kws.filter((_, j) => j !== i))}><X size={16} /></button>
-            </div>
-          ))}
-          <div className="kw-row">
-            <input className="input kw-word" value={newWord} placeholder="Nova palavra (ex.: cantina)" onChange={(e) => setNewWord(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addWord(); } }} />
-            <button type="button" className="btn kw-add" onClick={addWord} disabled={!newWord.trim()}><Plus size={16} /> Adicionar</button>
-          </div>
+        <div className="kw-add-row">
+          <input className="input" value={newWord} placeholder="Nova palavra (ex.: cantina)" onChange={(e) => setNewWord(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addWord(); } }} />
+          <button type="button" className="icon-btn kw-plus" aria-label="Adicionar palavra" onClick={addWord} disabled={!newWord.trim()}><Plus size={20} /></button>
         </div>
-        <p className="muted" style={{ fontSize: 13, paddingLeft: 4 }}>Com um valor padrão, digitar só a palavra no campo rápido (ex.: “cantina”) já lança esse valor.</p>
+        {kws.length > 0 && (
+          <div className="kw-group">
+            {(showAllKw ? kws : kws.slice(0, 6)).map((k, i) => (
+              <div key={i} className={`kw-item ${openKw === i ? 'open' : ''}`}>
+                <button type="button" className="kw-head" aria-expanded={openKw === i} onClick={() => setOpenKw(openKw === i ? null : i)}>
+                  <span className="kw-name">{k.word || '(vazia)'}</span>
+                  {k.value ? <span className="kw-badge">R$ {valueToDisplay(k.value)}</span> : <span className="kw-none">+ valor</span>}
+                </button>
+                {openKw === i && (
+                  <div className="kw-edit">
+                    <input className="input" value={k.word} aria-label="Palavra-chave" onChange={(e) => setKws(kws.map((x, j) => (j === i ? { ...x, word: e.target.value } : x)))} />
+                    <MoneyInput className="input" aria-label={`Valor padrão de ${k.word}`} value={k.value} placeholder="Valor padrão (opcional)"
+                      onChange={(v) => setKws(kws.map((x, j) => (j === i ? { ...x, value: v } : x)))} />
+                    <button type="button" className="kw-remove" onClick={() => { setKws(kws.filter((_, j) => j !== i)); setOpenKw(null); }}><Trash2 size={15} /> Remover palavra</button>
+                  </div>
+                )}
+              </div>
+            ))}
+            {kws.length > 6 && <button type="button" className="kw-more" onClick={() => setShowAllKw(!showAllKw)}>{showAllKw ? 'Mostrar menos' : `Ver todas (${kws.length})`}</button>}
+          </div>
+        )}
+        <p className="muted" style={{ fontSize: 13, paddingLeft: 4 }}>Valor padrão: digitar só a palavra no campo rápido já lança esse valor.</p>
       </Field>
       <Field label="Ícone">
         <div className="icon-grid">
