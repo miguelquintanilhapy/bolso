@@ -32,7 +32,7 @@ export function Login() {
       const m = err instanceof Error ? err.message : 'Algo deu errado.';
       setError(
         /invalid login/i.test(m) ? 'E-mail ou senha incorretos.'
-        : /não permitido|database error saving/i.test(m) ? (linkInvite || typedInvite.trim() ? 'Este convite não é válido ou foi desativado. Peça um link novo para quem te convidou.' : 'Este e-mail não está autorizado a criar conta no Bolso. Peça um link de convite para quem te indicou o app.')
+        : /não permitido|database error saving/i.test(m) ? (linkInvite || typedInvite.trim() ? 'Este convite não é válido ou foi desativado. Peça um link novo para quem te convidou.' : 'Este e-mail não está autorizado a criar conta no Bolso. O cadastro está fechado no momento. Peça um link de convite para quem te indicou o app.')
         : /signups? (are|is) disabled/i.test(m) ? 'O cadastro está desligado no Supabase. Ative em Authentication → Sign In / Providers → "Allow new users to sign up" e confirme que o provedor Email está ligado.'
         : /already registered/i.test(m) ? 'Este e-mail já tem conta. Use "Entrar".'
         : m,

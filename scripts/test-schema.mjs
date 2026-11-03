@@ -27,6 +27,12 @@ await db.exec("update public.invite_codes set active = false where code = 'velho
 check('convite: código desativado deixa de valer', await rejects(`insert into auth.users (email, raw_user_meta_data) values ('n3@x.com', '{"invite":"velho"}')`));
 check('convite: a lista de e-mails continua valendo sem código', !(await rejects("insert into auth.users (email) values ('miguelquintanilha61@gmail.com')")));
 
+// interruptor de cadastro aberto
+await db.exec('update public.app_settings set open_signup = true');
+check('cadastro aberto: qualquer e-mail cria conta, sem convite', !(await rejects("insert into auth.users (email) values ('qualquer@x.com')")));
+await db.exec('update public.app_settings set open_signup = false');
+check('cadastro fechado de novo: volta a bloquear', await rejects("insert into auth.users (email) values ('outro@x.com')"));
+
 const uid = (await db.query("select id from auth.users where email ilike 'miguelquintanilha61@gmail.com' limit 1")).rows[0].id;
 await db.exec(`set app.uid = '${uid}'`);
 await db.exec(`insert into accounts (name, kind) values ('Conta', 'checking'), ('Cartão', 'credit')`);
