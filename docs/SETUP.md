@@ -17,6 +17,18 @@ Em **Authentication → Sign In / Providers → Email**:
 - Desligue **Confirm email**. Com duas pessoas, é mais simples e evita depender do envio de e-mails.
 - Mantenha **Allow new users to sign up** ligado até as duas contas serem criadas. Depois pode desligar; a lista de e-mails já protege de qualquer forma.
 
+### Convidar alguém sem mexer no Supabase (link de convite)
+Para ninguém precisar ser liberado e-mail por e-mail: crie um código e mande o link `https://SEU-APP/?convite=CODIGO`.
+Quem abrir o link já cai em **Criar conta** e entra na hora. No SQL Editor:
+
+```sql
+insert into public.invite_codes (code) values ('escolha-um-codigo');   -- criar
+update public.invite_codes set active = false where code = 'escolha-um-codigo';   -- cortar o convite
+```
+
+Para entrar direto, desligue a confirmação de e-mail: **Authentication → Sign In / Providers → Email → Confirm email** (desligado).
+Quem já criou conta continua entrando normalmente se o convite for desativado.
+
 Então abra o app, toque em **Criar conta** e use o e-mail liberado e uma senha de 8+ caracteres.
 
 ## 3. Variáveis no Vercel

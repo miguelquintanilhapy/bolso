@@ -6,7 +6,7 @@ const db = new PGlite();
 await db.exec(`
   create role anon; create role authenticated;
   create schema auth;
-  create table auth.users (id uuid primary key default gen_random_uuid(), email text);
+  create table auth.users (id uuid primary key default gen_random_uuid(), email text, raw_user_meta_data jsonb);
   create function auth.uid() returns uuid language sql as $$ select nullif(current_setting('app.uid', true), '')::uuid $$;
 `);
 await db.exec(readFileSync('supabase/schema.sql', 'utf8'));
@@ -19,7 +19,15 @@ check('cadastro bloqueado fora da lista', await rejects("insert into auth.users 
 await db.exec(readFileSync('supabase/seed_allowed_emails.sql', 'utf8'));
 check('cadastro liberado na lista (case-insensitive)', !(await rejects("insert into auth.users (email) values ('MiguelQuintanilha61@Gmail.com')")));
 
-const uid = (await db.query("select id from auth.users limit 1")).rows[0].id;
+// convite por link: o código vem em raw_user_meta_data.invite
+await db.exec("insert into public.invite_codes (code) values ('Amigos-2026'), ('velho')");
+check('convite: código errado ou ausente continua bloqueado', await rejects(`insert into auth.users (email, raw_user_meta_data) values ('n1@x.com', '{"invite":"errado"}')`) && await rejects("insert into auth.users (email, raw_user_meta_data) values ('n2@x.com', '{}')"));
+check('convite: código válido libera qualquer e-mail (sem diferenciar maiúsculas)', !(await rejects(`insert into auth.users (email, raw_user_meta_data) values ('novo@x.com', '{"invite":"  amigos-2026 "}')`)));
+await db.exec("update public.invite_codes set active = false where code = 'velho'");
+check('convite: código desativado deixa de valer', await rejects(`insert into auth.users (email, raw_user_meta_data) values ('n3@x.com', '{"invite":"velho"}')`));
+check('convite: a lista de e-mails continua valendo sem código', !(await rejects("insert into auth.users (email) values ('miguelquintanilha61@gmail.com')")));
+
+const uid = (await db.query("select id from auth.users where email ilike 'miguelquintanilha61@gmail.com' limit 1")).rows[0].id;
 await db.exec(`set app.uid = '${uid}'`);
 await db.exec(`insert into accounts (name, kind) values ('Conta', 'checking'), ('Cartão', 'credit')`);
 const [a, b] = (await db.query('select id from accounts order by name')).rows.map((r) => r.id);
