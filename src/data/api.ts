@@ -16,7 +16,8 @@ export interface Db {
   getUser(): Promise<SessionUser | null>;
   onAuthChange(cb: (u: SessionUser | null) => void): () => void;
   signIn(email: string, password: string): Promise<void>;
-  signUp(email: string, password: string): Promise<{ needsConfirmation: boolean }>;
+  /** `invite`: código do link de convite; libera o cadastro sem o e-mail estar na lista. */
+  signUp(email: string, password: string, invite?: string): Promise<{ needsConfirmation: boolean }>;
   signOut(): Promise<void>;
   list<T>(table: Table): Promise<T[]>;
   /** Com `ignoreDuplicates`, linhas que violam a chave única são puladas; retorna só as criadas. */
