@@ -26,6 +26,13 @@ insert into public.invite_codes (code) values ('escolha-um-codigo');   -- criar
 update public.invite_codes set active = false where code = 'escolha-um-codigo';   -- cortar o convite
 ```
 
+Para abrir o cadastro a **qualquer pessoa com o endereço** (sem convite), ou fechar de novo:
+
+```sql
+update public.app_settings set open_signup = true;    -- aberto
+update public.app_settings set open_signup = false;   -- fechado (volta a exigir e-mail liberado ou convite)
+```
+
 Para entrar direto, desligue a confirmação de e-mail: **Authentication → Sign In / Providers → Email → Confirm email** (desligado).
 Quem já criou conta continua entrando normalmente se o convite for desativado.
 
