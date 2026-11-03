@@ -3,13 +3,22 @@
 -- É seguro rodar de novo: tudo usa "if not exists" / "create or replace".
 
 -- ============================================================
--- Controle de acesso: só e-mails da tabela allowed_emails criam conta
+-- Controle de acesso: cria conta quem tem o e-mail em allowed_emails OU chega por um
+-- link de convite (…/?convite=CODIGO) com um código ativo em invite_codes.
 -- ============================================================
 create table if not exists public.allowed_emails (
   email text primary key
 );
 alter table public.allowed_emails enable row level security;
 -- sem policies: ninguém acessa pela API; edite pelo Table Editor do painel.
+
+create table if not exists public.invite_codes (
+  code       text primary key,
+  active     boolean not null default true,
+  created_at timestamptz not null default now()
+);
+alter table public.invite_codes enable row level security;
+-- sem policies: só o painel (SQL Editor / Table Editor) mexe. Para cortar um convite: active = false.
 
 create or replace function public.enforce_allowed_email()
 returns trigger
@@ -18,12 +27,14 @@ security definer
 set search_path = public
 as $$
 begin
-  if not exists (
-    select 1 from public.allowed_emails where lower(email) = lower(new.email)
-  ) then
-    raise exception 'Cadastro não permitido para este e-mail';
+  if exists (select 1 from public.allowed_emails where lower(email) = lower(new.email))
+     or exists (
+       select 1 from public.invite_codes
+       where active and lower(code) = lower(btrim(coalesce(new.raw_user_meta_data ->> 'invite', '')))
+     ) then
+    return new;
   end if;
-  return new;
+  raise exception 'Cadastro não permitido para este e-mail';
 end;
 $$;
 

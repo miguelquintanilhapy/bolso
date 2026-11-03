@@ -481,3 +481,15 @@ describe('sugestões de palavra-chave e ordem das categorias', () => {
     expect(moveItem([1, 2, 3], 1, 5)).toEqual([1, 2, 3]);
   });
 });
+
+describe('convite por link', () => {
+  it('lê o código do endereço e ignora lixo', async () => {
+    const { inviteFromSearch } = await import('./invite');
+    expect(inviteFromSearch('?convite=Amigos-2026')).toBe('Amigos-2026');
+    expect(inviteFromSearch('?demo&convite=abc_1')).toBe('abc_1');
+    expect(inviteFromSearch('')).toBeNull();
+    expect(inviteFromSearch('?convite=')).toBeNull();
+    expect(inviteFromSearch('?convite=a b')).toBeNull();
+    expect(inviteFromSearch('?convite=<script>')).toBeNull();
+  });
+});

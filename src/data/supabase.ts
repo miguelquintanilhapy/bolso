@@ -25,8 +25,8 @@ export function createSupabaseDb(url: string, anonKey: string): Db {
       const { error } = await sb.auth.signInWithPassword({ email, password });
       fail(error);
     },
-    async signUp(email, password) {
-      const { data, error } = await sb.auth.signUp({ email, password });
+    async signUp(email, password, invite) {
+      const { data, error } = await sb.auth.signUp({ email, password, ...(invite ? { options: { data: { invite } } } : {}) });
       fail(error);
       return { needsConfirmation: !data.session };
     },

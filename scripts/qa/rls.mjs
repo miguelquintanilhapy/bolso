@@ -7,7 +7,7 @@ const db = new PGlite();
 await db.exec(`
   create role anon nologin; create role authenticated nologin;
   create schema auth;
-  create table auth.users (id uuid primary key default gen_random_uuid(), email text);
+  create table auth.users (id uuid primary key default gen_random_uuid(), email text, raw_user_meta_data jsonb);
   create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('app.uid', true), '')::uuid $$;
   grant usage on schema auth to anon, authenticated;
   grant execute on function auth.uid() to anon, authenticated;
@@ -15,7 +15,7 @@ await db.exec(`
 await db.exec(readFileSync('supabase/schema.sql', 'utf8'));
 // o Supabase concede acesso às tabelas do schema public a anon/authenticated por padrão; as regras (RLS) é que restringem
 await db.exec(`grant usage on schema public to anon, authenticated; grant all on all tables in schema public to anon, authenticated;`);
-await db.exec(`insert into public.allowed_emails values ('a@x.com'), ('b@x.com'); insert into auth.users (email) values ('a@x.com'), ('b@x.com');`);
+await db.exec(`insert into public.invite_codes (code) values ('segredo'); insert into public.allowed_emails values ('a@x.com'), ('b@x.com'); insert into auth.users (email) values ('a@x.com'), ('b@x.com');`);
 const [A, B] = (await db.query('select id from auth.users order by email')).rows.map((r) => r.id);
 
 let failed = 0;
@@ -41,6 +41,7 @@ check('B não enxerga categorias de A', (await as('authenticated', B, () => rows
 check('B não enxerga avisos de A', (await as('authenticated', B, () => rows('select * from notifications'))).length === 0);
 check('A enxerga os próprios dados', (await as('authenticated', A, () => rows('select * from transactions'))).length === 1);
 check('lista de e-mails permitidos não é legível por usuário logado', (await as('authenticated', A, () => rows('select * from allowed_emails'))).length === 0);
+check('códigos de convite não são legíveis por usuário logado nem por anônimo', (await as('authenticated', A, () => rows('select * from invite_codes'))).length === 0 && (await as('anon', null, () => rows('select * from invite_codes'))).length === 0);
 check('lista de e-mails permitidos não é legível por anônimo', (await as('anon', null, () => rows('select * from allowed_emails'))).length === 0);
 for (const t of ['accounts', 'transactions', 'categories', 'recurrences', 'notifications', 'investment_snapshots']) {
   check(`anônimo não lê ${t}`, (await as('anon', null, () => rows(`select * from ${t}`))).length === 0);
