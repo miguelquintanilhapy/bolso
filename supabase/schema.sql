@@ -20,6 +20,15 @@ create table if not exists public.invite_codes (
 alter table public.invite_codes enable row level security;
 -- sem policies: só o painel (SQL Editor / Table Editor) mexe. Para cortar um convite: active = false.
 
+-- Interruptor geral: com open_signup = true, qualquer pessoa com o endereço do app cria conta.
+create table if not exists public.app_settings (
+  id          boolean primary key default true check (id),
+  open_signup boolean not null default false
+);
+insert into public.app_settings (id) values (true) on conflict do nothing;
+alter table public.app_settings enable row level security;
+-- sem policies: só o painel mexe. Abrir: update public.app_settings set open_signup = true;
+
 create or replace function public.enforce_allowed_email()
 returns trigger
 language plpgsql
@@ -27,7 +36,8 @@ security definer
 set search_path = public
 as $$
 begin
-  if exists (select 1 from public.allowed_emails where lower(email) = lower(new.email))
+  if exists (select 1 from public.app_settings where open_signup)
+     or exists (select 1 from public.allowed_emails where lower(email) = lower(new.email))
      or exists (
        select 1 from public.invite_codes
        where active and lower(code) = lower(btrim(coalesce(new.raw_user_meta_data ->> 'invite', '')))
