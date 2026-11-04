@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Pencil } from 'lucide-react';
+import { Pencil, Target } from 'lucide-react';
 import { useStore } from '../store';
 import { Empty, MonthNav, SectionTitle } from '../ui/common';
 import { useEditor } from '../ui/editors';
@@ -41,7 +41,7 @@ export function Budgets() {
         <div className="split-col sticky">
           {statuses.length === 0 ? (
             <div className="card">
-              <Empty title="Nenhum limite definido">
+              <Empty icon={<Target size={26} />} title="Nenhum limite definido">
                 Defina um limite mensal nas categorias para acompanhar quanto ainda pode gastar.
                 <div style={{ marginTop: 12 }}><Link className="btn primary" to="/categorias">Definir limites</Link></div>
               </Empty>

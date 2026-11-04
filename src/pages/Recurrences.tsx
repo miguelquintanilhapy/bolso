@@ -5,7 +5,7 @@ import { Empty } from '../ui/common';
 import { useEditor } from '../ui/editors';
 import { CategoryIcon } from '../ui/icons';
 import { Hero, Money } from '../ui/privacy';
-import { monthlyCommitted } from '../lib/recurrence';
+import { monthlyCommitted, monthlyIncome } from '../lib/recurrence';
 import { monthOf, daysInMonth, addMonthsToMonth } from '../lib/dates';
 
 const SUGGESTIONS: { label: string; description: string; kind: 'expense' | 'income' }[] = [
@@ -29,8 +29,15 @@ function nextDate(r: { day_of_month: number; start_month: string; end_month: str
 export function Recurrences() {
   const s = useStore();
   const { openRecurrence } = useEditor();
-  const list = [...s.recurrences].sort((a, b) => Number(b.active) - Number(a.active) || a.day_of_month - b.day_of_month);
   const ended = (r: { end_month: string | null }) => !!r.end_month && r.end_month < monthOf(s.today);
+  // as que vêm primeiro são as próximas a acontecer; pausadas e encerradas ficam no fim
+  const list = [...s.recurrences].sort((a, b) => {
+    const live = (x: typeof a) => x.active && !ended(x);
+    if (live(a) !== live(b)) return live(a) ? -1 : 1;
+    return (nextDate(a, s.today) ?? '9999').localeCompare(nextDate(b, s.today) ?? '9999') || a.day_of_month - b.day_of_month;
+  });
+  const fixedOut = monthlyCommitted(s.recurrences);
+  const fixedIn = monthlyIncome(s.recurrences);
   const chips = (
     <div className="chips" aria-label="Sugestões">
       {SUGGESTIONS.map((x) => <button key={x.label} className="chip" onClick={() => openRecurrence(undefined, { description: x.description, kind: x.kind })}>+ {x.label}</button>)}
@@ -47,8 +54,14 @@ export function Recurrences() {
       <div className="split-col sticky">
       <section className="card">
         <span className="muted">Já comprometido todo mês</span>
-        <Hero value={monthlyCommitted(s.recurrences)} small />
+        <Hero value={fixedOut} small />
         <p className="hint">Soma das despesas recorrentes ativas: aluguel, assinaturas, mensalidades…</p>
+        {fixedIn > 0 && (
+          <>
+            <div className="kv" style={{ marginTop: 10 }}><span>Receitas fixas por mês</span><b className="green"><Money value={fixedIn} /></b></div>
+            <div className="kv"><span>{fixedIn >= fixedOut ? 'Sobra depois das fixas' : 'Falta cobrir com outras receitas'}</span><b className={fixedIn >= fixedOut ? 'green' : 'red'}><Money value={Math.abs(Math.round((fixedIn - fixedOut) * 100) / 100)} /></b></div>
+          </>
+        )}
       </section>
       {list.length > 0 && list.length < 4 && <div><p className="hint-title" style={{ marginBottom: 8 }}>Sugestões rápidas</p>{chips}</div>}
       </div>
