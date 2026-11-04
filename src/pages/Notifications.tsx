@@ -43,8 +43,11 @@ export function Notifications() {
                 onClick={() => { void s.markRead([n.id]); if (n.link) nav(n.link); }}>
                 <span className={`ico ${/estourou|atraso|atrasado/i.test(n.title) ? 'bad' : ''}`}><I size={19} /></span>
                 <span className="main" role="button" tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void s.markRead([n.id]); if (n.link) nav(n.link); } }}><b style={{ whiteSpace: 'normal' }}>{n.title}</b><small style={{ whiteSpace: 'normal' }}>{n.body}</small></span>
-                <span className="side"><small>{dayLabel(n.created_at.slice(0, 10), s.today)}</small></span>
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void s.markRead([n.id]); if (n.link) nav(n.link); } }}>
+                  <b>{n.title}</b>
+                  <small className="notif-body">{n.body}</small>
+                  <small className="notif-when">{dayLabel(n.created_at.slice(0, 10), s.today)}</small>
+                </span>
                 <button className="trash" aria-label={`Excluir aviso: ${n.title}`} onClick={(e) => { e.stopPropagation(); void s.dismissNotifications([n.id]); }}><X size={18} /></button>
               </div>
             );
