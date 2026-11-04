@@ -941,3 +941,30 @@ kbd { font-size: 11px; }
 .archived-toggle { display: inline-flex; align-items: center; gap: 4px; margin: 4px 6px; }
 .item.archived { opacity: 0.7; }
 .group > .item.reorder-row { animation: none; }
+
+/* Início: o que ainda falta no mês */
+.outlook { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.outlook > div { background: var(--card); border-radius: var(--radius-sm); padding: 12px 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 2px; }
+.outlook span { font-size: 13px; color: var(--text-2); }
+.outlook b { font-size: 19px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+
+/* Cartão de crédito: o "cartão" com o limite */
+.credit-card {
+  --cc: #2a78d6;
+  color: #fff; border-radius: 22px; padding: 18px 18px 14px; display: flex; flex-direction: column; gap: 4px;
+  background: linear-gradient(150deg, color-mix(in srgb, var(--cc) 88%, #000), color-mix(in srgb, var(--cc) 55%, #000));
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--cc) 30%, transparent);
+}
+.credit-card .cc-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.credit-card .cc-top b { font-size: 16px; font-weight: 600; }
+.credit-card small { font-size: 13px; opacity: 0.92; }
+.credit-card .cc-big { font-size: 32px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.credit-card .cc-meter { height: 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.28); overflow: hidden; margin: 10px 0 6px; }
+.credit-card .cc-meter > i { display: block; height: 100%; border-radius: 999px; background: #fff; }
+.credit-card.over .cc-meter > i { background: #ffc9c4; }
+.credit-card .cc-foot { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; opacity: 0.95; font-variant-numeric: tabular-nums; }
+.credit-card .cc-days { margin-top: 10px; padding-top: 10px; border-top: 0.5px solid rgba(255, 255, 255, 0.3); }
+.credit-card .cc-link { align-self: flex-start; margin-top: 6px; color: #fff; font-weight: 600; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; }
+
+/* Estados vazios mais acolhedores */
+.empty .empty-ico { width: 64px; height: 64px; background: radial-gradient(circle at 30% 25%, var(--card), var(--card-2)); box-shadow: 0 0 0 8px color-mix(in srgb, var(--card-2) 55%, transparent); animation: pop-in 0.45s var(--ease-out) both; }

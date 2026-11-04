@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { ArrowDownToLine, ArrowLeft, ArrowUpFromLine, Pencil, Plus, RefreshCw, Scale, Trash2, TriangleAlert } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeft, ArrowUpFromLine, CreditCard, Pencil, Plus, Receipt, RefreshCw, Scale, ShoppingBag, Trash2, TriangleAlert } from 'lucide-react';
 import { useStore } from '../store';
 import { Empty, MonthNav, SectionTitle, TxRow } from '../ui/common';
 import { allowedCategories, isRestricted, joinNames } from '../lib/categoryRules';
@@ -184,7 +184,7 @@ export function AccountDetail() {
                 <span className={`badge ${statusStyle}`}>{statusText}</span>
               </div>
               <Hero value={inv.total} small />
-              <p className="hint" style={{ marginTop: 2 }}>Só as compras desta fatura. O total que você deve no cartão está em “Limite”, abaixo.</p>
+              <p className="hint" style={{ marginTop: 2 }}>Só as compras desta fatura. O total que você deve no cartão está em “Usado”, no cartão abaixo.</p>
               <div className="kv" style={{ marginTop: 10 }}>
                 <span>{daysToClose >= 0 ? 'Fecha em' : 'Fechou em'}</span>
                 <b>{shortDate(inv.closingDate)}{daysToClose > 0 ? ` · em ${daysToClose} dia${daysToClose > 1 ? 's' : ''}` : daysToClose === 0 ? ' · hoje' : ''}</b>
@@ -201,26 +201,32 @@ export function AccountDetail() {
               {status === 'paid' && <p className="hint">✓ Fatura paga.</p>}
             </section>
 
-            <section className="card">
-              <div className="row-between"><span className="muted">Limite</span>{acc.credit_limit ? <b><Money value={acc.credit_limit} /></b> : <button className="link" onClick={() => openAccount(acc.id)}>Definir limite</button>}</div>
+            <section className={`credit-card ${level}`} style={{ '--cc': acc.color } as React.CSSProperties} aria-label={`Cartão ${acc.name}`}>
+              <div className="cc-top"><b>{acc.name}</b><CreditCard size={22} aria-hidden /></div>
               {acc.credit_limit ? (
                 <>
-                  <div className={`meter ${level}`} style={{ margin: '10px 0' }} role="progressbar" aria-valuenow={ov.limitUsedPct ?? 0} aria-valuemin={0} aria-valuemax={100} aria-label="Limite usado">
-                    <i style={{ width: `${ov.limitUsedPct ?? 0}%` }} />
+                  <small>Disponível</small>
+                  <span className="cc-big"><Money value={ov.limitAvailable ?? 0} /></span>
+                  <div className="cc-meter" role="progressbar" aria-valuenow={ov.limitUsedPct ?? 0} aria-valuemin={0} aria-valuemax={100} aria-label="Limite usado">
+                    <i style={{ width: `${Math.min(100, ov.limitUsedPct ?? 0)}%` }} />
                   </div>
-                  <div className="kv"><span>Usado ({ov.limitUsedPct}%) · todas as faturas</span><b><Money value={ov.committed} /></b></div>
-                  <div className="kv"><span>Disponível</span><b className="green"><Money value={ov.limitAvailable ?? 0} /></b></div>
+                  <div className="cc-foot"><span>Usado <Money value={ov.committed} /> ({ov.limitUsedPct}%)</span><span>Limite <Money value={acc.credit_limit} /></span></div>
                 </>
               ) : (
-                <div className="kv"><span>Comprometido em faturas</span><b><Money value={ov.committed} /></b></div>
+                <>
+                  <small>Comprometido em faturas</small>
+                  <span className="cc-big"><Money value={ov.committed} /></span>
+                  <button className="cc-link" onClick={() => openAccount(acc.id)}>Definir limite do cartão</button>
+                </>
               )}
-              <p className="hint">O "usado" inclui parcelas de faturas futuras, como no cartão de verdade.</p>
+              <div className="cc-foot cc-days"><span>Fecha dia {closing}</span>{acc.due_day ? <span>Vence dia {acc.due_day}</span> : null}</div>
             </section>
+            <p className="hint">O "usado" inclui parcelas de faturas futuras, como no cartão de verdade.</p>
 
           </div>
           <div className="split-col">
             <SectionTitle title="Compras na fatura" action={<button className="link" onClick={() => newTx({ account_id: acc.id })}>+ Nova compra</button>} />
-            {inv.txs.length === 0 ? <div className="card"><Empty title="Sem compras nesta fatura" /></div> : (
+            {inv.txs.length === 0 ? <div className="card"><Empty icon={<ShoppingBag size={26} />} title="Sem compras nesta fatura" action={<button className="btn" onClick={() => newTx({ account_id: acc.id })}>Lançar uma compra</button>}>Compras no cartão aparecem aqui, na fatura do mês certo.</Empty></div> : (
               <div className="list">{inv.txs.map((t) => <TxRow key={t.id} tx={t} {...rowProps} onClick={() => editTx(t.id)} />)}</div>
             )}
             <p className="muted" style={{ fontSize: 13 }}>Compras feitas até o dia {closing} entram na fatura do mês; depois, na de {monthLabel(addMonthsToMonth(month, 1), false)}. Quando você paga, o valor abate da fatura mais antiga em aberto.</p>
@@ -268,7 +274,7 @@ export function AccountDetail() {
           <div className="split-col">
             <SectionTitle title="Saldos informados" />
             {rows.length === 0 ? (
-              <div className="card"><Empty title="Nenhum saldo informado">O saldo inicial é {formatBRL(acc.initial_balance)}.</Empty></div>
+              <div className="card"><Empty icon={<Scale size={26} />} title="Nenhum saldo informado">O saldo inicial é {formatBRL(acc.initial_balance)}.</Empty></div>
             ) : (
               <div className="group">
                 {rows.map(({ h, gain }) => (
@@ -318,7 +324,7 @@ export function AccountDetail() {
         </div>
         <div className="split-col">
           <SectionTitle title="Movimentações" action={<button className="link" onClick={() => newTx({ account_id: acc.id })}>+ Novo</button>} />
-          {own.length === 0 ? <div className="card"><Empty title="Sem movimentações" /></div> : (
+          {own.length === 0 ? <div className="card"><Empty icon={<Receipt size={26} />} title="Sem movimentações" action={<button className="btn" onClick={() => newTx({ account_id: acc.id })}>Novo lançamento</button>}>Tudo que você lançar nesta conta aparece aqui.</Empty></div> : (
             <div className="list">{own.slice(0, 40).map((t) => <TxRow key={t.id} tx={t} {...rowProps} onClick={() => editTx(t.id)} />)}</div>
           )}
         </div>
