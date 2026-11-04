@@ -7,7 +7,6 @@ import { inviteFromSearch } from '../lib/invite';
 export function Login() {
   const linkInvite = inviteFromSearch(location.search); // quem chega por um link de convite já cai em "Criar conta"
   const [mode, setMode] = useState<'in' | 'up'>(linkInvite ? 'up' : 'in');
-  const [typedInvite, setTypedInvite] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -24,7 +23,7 @@ export function Login() {
       if (mode === 'in') await db.signIn(email.trim(), password);
       else {
         if (password.length < 8) throw new Error('Use uma senha com pelo menos 8 caracteres.');
-        const r = await db.signUp(email.trim(), password, linkInvite ?? (typedInvite.trim() || undefined));
+        const r = await db.signUp(email.trim(), password, linkInvite ?? undefined);
         if (linkInvite) history.replaceState(null, '', location.pathname); // tira o código do endereço
         if (r.needsConfirmation) setInfo('Conta criada! Confirme pelo link enviado ao seu e-mail e depois entre.');
       }
@@ -32,7 +31,7 @@ export function Login() {
       const m = err instanceof Error ? err.message : 'Algo deu errado.';
       setError(
         /invalid login/i.test(m) ? 'E-mail ou senha incorretos.'
-        : /não permitido|database error saving/i.test(m) ? (linkInvite || typedInvite.trim() ? 'Este convite não é válido ou foi desativado. Peça um link novo para quem te convidou.' : 'Este e-mail não está autorizado a criar conta no Bolso. O cadastro está fechado no momento. Peça um link de convite para quem te indicou o app.')
+        : /não permitido|database error saving/i.test(m) ? (linkInvite ? 'Este convite não é válido ou foi desativado. Peça um link novo para quem te convidou.' : 'Este e-mail não está autorizado a criar conta no Bolso. O cadastro está fechado no momento. Peça um link de convite para quem te indicou o app.')
         : /signups? (are|is) disabled/i.test(m) ? 'O cadastro está desligado no Supabase. Ative em Authentication → Sign In / Providers → "Allow new users to sign up" e confirme que o provedor Email está ligado.'
         : /already registered/i.test(m) ? 'Este e-mail já tem conta. Use "Entrar".'
         : m,
@@ -60,11 +59,6 @@ export function Login() {
           <button type="button" className="pw-toggle" onClick={() => setShow((v) => !v)} aria-label={show ? 'Ocultar senha' : 'Mostrar senha'}>{show ? <EyeOff size={19} /> : <Eye size={19} />}</button>
         </div>
         {mode === 'up' && <small className="muted" style={{ paddingLeft: 4 }}>Mínimo de 8 caracteres.</small>}</div>
-      {mode === 'up' && !linkInvite && (
-        <div className="field"><label className="lbl" htmlFor="invite">Código de convite <span className="muted">(se você recebeu um)</span></label>
-          <input id="invite" className="input" autoComplete="off" autoCapitalize="none" value={typedInvite} onChange={(e) => setTypedInvite(e.target.value)} /></div>
-      )}
-      {mode === 'up' && linkInvite && <p className="banner">Você recebeu um convite para o Bolso. Crie sua conta e já pode usar.</p>}
       {error && <p key={error} className="error-text shake" role="alert">{error}</p>}
       {info && <p className="banner">{info}</p>}
       <button className="btn primary block" disabled={busy}>{busy ? 'Aguarde…' : mode === 'in' ? 'Entrar' : 'Criar conta'}</button>
