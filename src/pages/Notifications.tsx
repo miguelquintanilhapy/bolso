@@ -33,7 +33,7 @@ export function Notifications() {
         {list.length > 0 && <button className="btn sm" style={{ whiteSpace: 'nowrap' }} onClick={() => void s.dismissNotifications(list.map((n) => n.id))}>Limpar todas</button>}
       </div>
       {list.length === 0 ? (
-        <div className="card"><Empty title="Tudo em dia"><Bell size={28} style={{ margin: '8px auto' }} /><p>Avisos de orçamento, faturas e contas a vencer aparecem aqui.</p></Empty></div>
+        <div className="card"><Empty icon={<Bell size={26} />} title="Tudo em dia">Avisos de orçamento, faturas e contas a vencer aparecem aqui.</Empty></div>
       ) : (
         <div className="group">
           {list.map((n) => {

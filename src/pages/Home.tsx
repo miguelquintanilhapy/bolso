@@ -15,8 +15,8 @@ import { AccountIcon, INVOICE_STATUS, KIND_ICON, KIND_LABEL } from '../ui/accoun
 import { describeAccount } from '../lib/accountInfo';
 import { activeAccounts, newestFirst, buildInstallments, forecast, monthSummary, netWorth, upcoming } from '../lib/finance';
 import { parseQuickEntry } from '../lib/quickEntry';
-import { addMonthsToMonth, dayLabel, endOfMonth, monthName, monthOf, shortDate } from '../lib/dates';
-import { formatBRL } from '../lib/money';
+import { addMonthsToMonth, dayLabel, diffDays, endOfMonth, monthName, monthOf, shortDate } from '../lib/dates';
+import { formatBRL, round2 } from '../lib/money';
 import { getName } from '../lib/profile';
 import type { NewTransaction, Account } from '../lib/types';
 
@@ -67,7 +67,11 @@ export function Home() {
   const delta = Math.round((worth - worthBefore) * 100) / 100;
   const fc = useMemo(() => forecast(s.accounts, s.transactions, s.investment_snapshots, s.today), [s.accounts, s.transactions, s.investment_snapshots, s.today]);
   const sum = useMemo(() => monthSummary(s.transactions, monthOf(s.today)), [s.transactions, s.today]);
-  const soon = useMemo(() => collapseOverdue(upcoming(s.accounts, s.transactions, s.today, 7), s.today), [s.accounts, s.transactions, s.today]);
+  // compromissos até o fim do mês (no mínimo 7 dias, para o começo do mês seguinte também aparecer)
+  const horizon = Math.max(7, diffDays(endOfMonth(monthOf(s.today)), s.today));
+  const soon = useMemo(() => collapseOverdue(upcoming(s.accounts, s.transactions, s.today, horizon), s.today), [s.accounts, s.transactions, s.today, horizon]);
+  const stillOut = round2(fc.pendingOut + fc.invoicesDue);
+  const stillIn = fc.pendingIn;
   const unread = s.notifications.filter((n) => !n.read && !n.dismissed).length;
   const recent = useMemo(
     () => [...s.transactions].filter((t) => t.date <= s.today).sort(newestFirst).slice(0, 8),
@@ -276,9 +280,13 @@ export function Home() {
             </div>
           )}
 
-          {soon.length > 0 && (
+          {(soon.length > 0 || stillOut > 0 || stillIn > 0) && (
             <div className="hblock" style={{ order: 6 }}>
-              <SectionTitle title="A pagar e a receber" />
+              <SectionTitle title={`Ainda neste mês`} />
+              <div className="outlook" aria-label={`O que ainda falta em ${monthName(monthOf(s.today))}`}>
+                <div><span>Ainda vai sair</span><b><Money value={stillOut} /></b></div>
+                <div><span>Ainda vai entrar</span><b className="green"><Money value={stillIn} /></b></div>
+              </div>
               <div className="group">
                 {soon.slice(0, 5).map((u) => (
                   <button key={u.id} className="item" onClick={() => nav(u.link)}>
@@ -292,6 +300,7 @@ export function Home() {
                   </button>
                 ))}
               </div>
+              {soon.length > 5 && <p className="hint">+ {soon.length - 5} outro{soon.length - 5 > 1 ? 's' : ''} compromisso{soon.length - 5 > 1 ? 's' : ''} até o fim do mês · veja em <Link className="link" to="/lancamentos">Extrato</Link></p>}
             </div>
           )}
 

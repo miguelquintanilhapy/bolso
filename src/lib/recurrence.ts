@@ -48,5 +48,9 @@ export function planRecurrences(
 }
 
 /** Total mensal comprometido por recorrências de despesa ativas. */
+/** Receitas fixas por mês (recorrências de receita ativas). */
+export const monthlyIncome = (recurrences: Recurrence[]) =>
+  Math.round(recurrences.filter((r) => r.active && r.kind === 'income').reduce((s, r) => s + r.amount, 0) * 100) / 100;
+
 export const monthlyCommitted = (recurrences: Recurrence[]) =>
   Math.round(recurrences.filter((r) => r.active && r.kind === 'expense').reduce((s, r) => s + r.amount, 0) * 100) / 100;

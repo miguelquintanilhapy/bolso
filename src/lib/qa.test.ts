@@ -493,3 +493,13 @@ describe('convite por link', () => {
     expect(inviteFromSearch('?convite=<script>')).toBeNull();
   });
 });
+
+describe('recorrências: receitas fixas', () => {
+  it('soma só receitas ativas', async () => {
+    const { monthlyIncome, monthlyCommitted } = await import('./recurrence');
+    const r = (o: Record<string, unknown>) => ({ id: 'r', description: 'x', amount: 100, kind: 'expense', account_id: 'a', category_id: null, tags: [], day_of_month: 5, start_month: '2026-01', end_month: null, last_generated_month: null, active: true, ...o }) as never;
+    const list = [r({ kind: 'income', amount: 3000 }), r({ kind: 'income', amount: 500, active: false }), r({ amount: 800 })];
+    expect(monthlyIncome(list)).toBe(3000);
+    expect(monthlyCommitted(list)).toBe(800);
+  });
+});
