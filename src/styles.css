@@ -968,3 +968,14 @@ kbd { font-size: 11px; }
 
 /* Estados vazios mais acolhedores */
 .empty .empty-ico { width: 64px; height: 64px; background: radial-gradient(circle at 30% 25%, var(--card), var(--card-2)); box-shadow: 0 0 0 8px color-mix(in srgb, var(--card-2) 55%, transparent); animation: pop-in 0.45s var(--ease-out) both; }
+
+/* Notificações: título, texto e data empilhados; o ponto de "não lida" não empurra o conteúdo */
+.item.notif { align-items: flex-start; padding: 14px 10px 14px 18px; gap: 12px; }
+.item.notif.unread { padding-left: 18px; }
+.notif.unread::before { left: 6px; top: 31px; margin-top: 0; }
+.item.notif .ico { margin-top: 1px; }
+.item.notif .main b { white-space: normal; font-size: 15.5px; line-height: 1.3; }
+.item.notif .main small.notif-body { white-space: normal; overflow: visible; font-size: 14px; line-height: 1.4; margin-top: 2px; color: var(--text-2); }
+.item.notif .main small.notif-when { font-size: 12.5px; margin-top: 6px; color: var(--muted); }
+.item.notif .trash { margin: -6px -2px -6px 0; padding: 8px; border-radius: 50%; }
+.item.notif .trash:active { background: var(--card-2); }
