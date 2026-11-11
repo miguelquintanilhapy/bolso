@@ -296,6 +296,6 @@ Mais detalhes em [docs/IDEIAS.md](docs/IDEIAS.md).
 
 <div align="center">
 
-Feito com 💚 por [@miguelquintanilhapy](https://github.com/miguelquintanilhapy)
+Feito por [@miguelquintanilhapy](https://github.com/miguelquintanilhapy)
 
 </div>
