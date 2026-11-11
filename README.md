@@ -21,7 +21,7 @@
 [📱 Telas](#-telas) &nbsp;·&nbsp;
 [⚡ Campo rápido](#-campo-rápido) &nbsp;·&nbsp;
 [🧱 Arquitetura](#-como-funciona-por-baixo) &nbsp;·&nbsp;
-[🚀 Como rodar](#-como-rodar) &nbsp;·&nbsp;
+[🚀 Como rodar](#-como-rodar)
 
 </div>
 
@@ -291,24 +291,6 @@ npm run qa:update                    # atualização automática do app
 - 📦 **Versão nas lojas** (o mesmo código, empacotado com Capacitor)
 
 Mais detalhes em [docs/IDEIAS.md](docs/IDEIAS.md).
-
----
-
-## 🇺🇸 English summary
-
-<details>
-<summary><b>What is Bolso?</b></summary>
-
-**Bolso** is a free, private, installable (PWA) personal-finance app built with **React 19, TypeScript, Vite and Supabase (Postgres + RLS)**, hosted on Vercel's free tier.
-
-- **Rule-based quick entry (no AI):** typing a line like `50 mercado` creates categorized transactions, installments and dated entries; it learns keywords and supports per-keyword default amounts.
-- **Credit cards done right:** closing/due dates, per-month invoices (including future installments), invoice payment and a visual limit card.
-- **Budgets with pace**, end-of-month forecast, tag and category insights, recurring bills and smart categories.
-- **Private by design:** each person only sees their own data, enforced at the database level; no ads, no trackers, no AI.
-- **Feels like an app:** installs to the home screen, opens instantly, works in light and dark mode, exports your data any time.
-- **Try it:** [bolso-delta.vercel.app/?demo](https://bolso-delta.vercel.app/?demo) runs entirely in your browser with sample data, no account needed.
-
-</details>
 
 ---
 
