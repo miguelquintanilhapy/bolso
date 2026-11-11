@@ -2,183 +2,184 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="public/logo-white.png">
-  <img src="public/logo.png" alt="Bolso" width="180">
+  <img src="public/logo.png" alt="Bolso" width="200">
 </picture>
 
-**Seu controle financeiro, só seu.**
+### Finanças pessoais que cabem no bolso: rápido de usar, privado e gratuito.
 
-App de finanças pessoais **gratuito**, **privado** e **instalável no celular** (PWA).
-Sem anúncios, sem planilha, sem IA: regras claras e dados separados por pessoa.
+PWA instalável no celular · sem anúncios · sem IA · dados separados por pessoa
 
 <br />
 
-<img src="docs/img/inicio-light.png" alt="Início" width="190" />
-<img src="docs/img/extrato-light.png" alt="Extrato" width="190" />
-<img src="docs/img/orcamento-light.png" alt="Orçamento" width="190" />
-<img src="docs/img/cartao-light.png" alt="Cartão de crédito" width="190" />
+![React](https://img.shields.io/badge/React_19-20232a?style=for-the-badge&logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178c6?style=for-the-badge&logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-646cff?style=for-the-badge&logo=vite&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3ecf8e?style=for-the-badge&logo=supabase&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL_+_RLS-336791?style=for-the-badge&logo=postgresql&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
+![PWA](https://img.shields.io/badge/PWA-5a0fc8?style=for-the-badge&logo=pwa&logoColor=white)
+
+**[▶ Experimentar agora (sem criar conta)](https://bolso-delta.vercel.app/?demo)** &nbsp;·&nbsp; [Configuração](docs/SETUP.md) &nbsp;·&nbsp; [Arquitetura](#arquitetura) &nbsp;·&nbsp; [English](#english-summary)
+
+<br />
+
+<img src="docs/img/inicio-light.png" alt="Início" width="185" />
+<img src="docs/img/extrato-light.png" alt="Extrato" width="185" />
+<img src="docs/img/orcamento-light.png" alt="Orçamento" width="185" />
+<img src="docs/img/cartao-light.png" alt="Cartão de crédito" width="185" />
 
 </div>
 
 ---
 
-## Sumário
+## Por que o Bolso existe
 
-- [O que é](#o-que-é)
-- [Recursos](#recursos)
-- [Campo rápido](#campo-rápido)
-- [Categorias e palavras-chave](#categorias-e-palavras-chave)
-- [Cartões e faturas](#cartões-e-faturas)
-- [Telas](#telas)
-- [Acesso e cadastro](#acesso-e-cadastro)
-- [Tecnologia](#tecnologia)
-- [Rodar e configurar](#rodar-e-configurar)
-- [Qualidade e testes](#qualidade-e-testes)
-- [Estrutura do projeto](#estrutura-do-projeto)
-- [Privacidade e segurança](#privacidade-e-segurança)
-- [Ideias para depois](#ideias-para-depois)
+Apps de finanças ou são pesados, ou cobram, ou mostram anúncios, ou exigem preencher dez campos para registrar um café.
+O Bolso nasceu para duas pessoas que queriam **responder rápido** às perguntas que importam:
 
-## O que é
+> *Quanto eu tenho? Quanto ainda vai sair este mês? Quanto posso gastar? Para onde o dinheiro foi?*
 
-O Bolso responde, na hora, às perguntas de quem controla o próprio dinheiro: **quanto eu tenho, quanto ainda vai sair este mês, quanto posso gastar e onde o dinheiro foi**.
+Lançar um gasto leva **uma linha de texto** (`50 mercado`), a tela inicial já mostra **o saldo previsto para o fim do mês**,
+e tudo roda nos **planos gratuitos** do Supabase e da Vercel.
 
-- **Barato de manter:** roda 100% nos planos gratuitos do Supabase (banco e login) e da Vercel (hospedagem).
-- **Rápido de usar:** lançar um gasto leva uma linha de texto.
-- **Instalável:** abre em tela cheia no iPhone e no Android, com ícone próprio, funciona offline para consulta e atualiza sozinho.
-- **Cada pessoa vê só os próprios dados:** a separação é garantida pelo banco (RLS), não pelo app.
-
-## Recursos
+## Destaques do produto
 
 | | |
 |---|---|
-| **Contas** | Conta corrente, cartão de crédito e investimentos (saldo atualizado à mão, com histórico). Modelos de banco e benefício (Nubank, Itaú, Swile, VR…) para começar em um toque. |
-| **Lançamentos** | Receitas, despesas e transferências, com categoria, tags, observação, horário editável e situação pago/pendente. Parcelamento (`3x`), recorrências geradas sozinhas, busca, filtros e "Desfazer" ao apagar. |
-| **Orçamento** | Limite mensal por categoria, barras de uso, avisos a 80% e 100% e **ritmo do mês** ("você já usou 60% com 30% do mês"). |
-| **Início** | Patrimônio, disponível agora, **previsto para o fim do mês**, e "Ainda neste mês" (quanto ainda vai sair e entrar, com a lista de compromissos). |
-| **Insights** | Resumo por categoria, evolução mensal, patrimônio ao longo do tempo e **gasto por tag** (toque para ver o extrato daquela tag). |
-| **Recorrências** | Despesas e receitas fixas: total comprometido por mês, receitas fixas, sobra e próxima data de cada uma. |
-| **Notificações** | Avisos de orçamento, faturas e contas a vencer, dentro do app; marcam como vistas ao abrir e podem ser excluídas. |
-| **Conforto** | Ocultar valores, tema claro/escuro, atalhos de teclado, exportação CSV e backup JSON. |
+| ⚡ **Campo rápido, sem IA** | `50 mercado`, `uber 23,90`, `+3000 salário`, `300 tv 3x cartão`, `ontem 12 padaria #trabalho`. Regras claras, palavras-chave que o app aprende e **valor padrão por palavra** (`cantina` já lança R$ 15,50). |
+| 💳 **Cartões e faturas de verdade** | Fechamento, vencimento, fatura de cada mês (inclusive parcelas futuras), pagamento da fatura e limite em um cartão visual. |
+| 🎯 **Orçamento com ritmo** | Limite por categoria, avisos a 80% e 100% e leitura do ritmo: *"você já usou 60% do orçamento com 30% do mês"*. |
+| 🔮 **Previsão do mês** | Disponível agora ± pendentes − faturas a vencer, e "Ainda neste mês": quanto ainda vai sair e entrar. |
+| 🗂️ **Categorias inteligentes** | Sugestões do histórico, regras por conta (vale-alimentação só aceita alimentação), reordenar, arquivar e mesclar ao apagar, com "Desfazer". |
+| 📊 **Insights** | Gasto por categoria e por tag, evolução mensal e patrimônio ao longo do tempo. |
+| 📲 **Experiência de app** | Instala na tela inicial, abre na hora com cache local, atualiza sozinho com segurança, modo escuro, ocultar valores, atalhos de teclado e exportação CSV/JSON. |
 
-## Campo rápido
+<div align="center">
 
-No topo do Início, digite e o Bolso registra por regras fixas (sem IA):
+<img src="docs/img/categorias-light.png" alt="Categorias" width="200" />
+<img src="docs/img/inicio-dark.png" alt="Início no modo escuro" width="200" />
 
-| Digite | Resultado |
+</div>
+
+## Experimente em 10 segundos
+
+Abra **[bolso-delta.vercel.app/?demo](https://bolso-delta.vercel.app/?demo)**: o modo demonstração roda inteiro no seu navegador, com dados de exemplo e **sem enviar nada a servidor**.
+Digite `45 almoço` no campo do topo, deslize uma linha para pagar ou apagar, abra um cartão e olhe o orçamento.
+
+## Arquitetura
+
+```mermaid
+flowchart LR
+  UI["Interface React<br/>pages · ui"] --> Store["Store<br/>estado e regras de UX"]
+  Store --> Lib["lib/<br/>lógica financeira pura e testada"]
+  Store --> Db{{"Interface Db"}}
+  Db --> SB[("Supabase<br/>Postgres + RLS")]
+  Db --> Demo[("Modo demo<br/>local, sem servidor")]
+  Store --> Cache[("IndexedDB<br/>cópia local")]
+  UI -.-> SW["Service Worker<br/>atualização segura"]
+```
+
+- **Camada de dados com uma só interface** (`Db`): o mesmo app roda contra o Supabase ou contra um modo demonstração local, o que também torna os testes de interface rápidos e determinísticos.
+- **Lógica financeira pura** em `src/lib/` (saldos, faturas, parcelas, orçamento, previsão, campo rápido, recorrências, sugestões): sem React, sem I/O, fácil de testar.
+- **O banco é a fonte de verdade das regras de segurança:** RLS por usuário e gatilhos no Postgres, não confiança no cliente.
+
+## Decisões de engenharia
+
+| Desafio | Como foi resolvido |
 |---|---|
-| `50 mercado` | Despesa de R$ 50 em Alimentação |
-| `uber 23,90` | Despesa em Transporte |
-| `+3000 salário` | Receita em Salário |
-| `300 tv 3x cartão` | R$ 300 em 3 parcelas no cartão |
-| `ontem 12 padaria #trabalho` | Com data e tag |
-| `cantina` | Usa o **valor padrão** da palavra, se ela tiver um; senão abre o formulário preenchido |
+| Cada pessoa nunca pode ver os dados da outra | **Row Level Security** em todas as tabelas, com um teste automático que tenta ler como outro usuário e como anônimo. |
+| Regras que o app não pode burlar | **Gatilhos e *constraints* no Postgres**: categorias permitidas por conta, transferência válida, formato de horário, controle de cadastro. Testados num Postgres embutido (PGlite). |
+| Dinheiro e datas sem surpresa | Valores sempre arredondados em duas casas, do mesmo jeito em toda a lógica; **testes rodados em 5 fusos horários** (São Paulo, UTC, Auckland, Kolkata, Honolulu) para pegar erro de data. |
+| Fatura do cartão correta | Cada compra cai na fatura do mês certo conforme fechamento e vencimento, inclusive parcelas; índice em cache evita recalcular. |
+| Abrir rápido com muitos dados | Cache local em **IndexedDB** (a tela aparece antes do servidor responder), Extrato paginado e verificação de desempenho com **milhares de lançamentos**. |
+| Atualizar o app sem atrapalhar quem está usando | Service Worker com atualização controlada: só recarrega quando é seguro (sem nada em edição), para nunca perder um lançamento a meio. |
+| Campo de texto que entende o dia a dia | *Parser* por regras (valor, data, parcelas, conta, tags, palavra-chave), com aprendizado de palavras e valor padrão, **sem depender de IA**. |
+| Acessível de verdade | **axe-core** em todas as telas, claro e escuro, celular e computador: 0 violações; nomes acessíveis, navegação por teclado e respeito a "reduzir movimento". |
+| Custo zero | Planos gratuitos + rotina diária no GitHub Actions que evita a pausa do projeto no Supabase. |
 
-Os ícones sob o campo escolhem a conta ou o cartão do próximo lançamento (ex.: toque em Swile e digite `480 vr`).
-Palavra desconhecida abre o formulário já preenchido e, ao salvar, o Bolso **aprende** a palavra.
+## Qualidade em números
 
-## Categorias e palavras-chave
+| | |
+|---|---|
+| Testes unitários da lógica | **140+**, em 5 fusos horários |
+| Testes do banco (schema, RLS, gatilhos) | **50+** verificações num Postgres embutido |
+| Testes de interface ponta a ponta | **~200** verificações com Playwright |
+| Acessibilidade (axe-core) | **0** violações nas telas principais |
+| Segurança | Sem chave de administrador no app; CSP restritiva e cabeçalhos de proteção em `vercel.json` |
 
-<img src="docs/img/categorias-light.png" alt="Categorias" width="220" align="right" />
+## Stack
 
-- **Gasto do mês** por categoria, com barra de uso do limite.
-- **Palavras-chave** em lista: cada uma pode ter um **valor padrão**, e digitar só a palavra no campo rápido já lança esse valor.
-- **Sugestões do histórico:** o app percebe descrições repetidas e oferece guardá-las como palavra-chave, já com o valor que mais se repete.
-- **Categorias por conta:** um cartão pode aceitar só algumas categorias (ex.: vale-alimentação só para alimentação), com regra no banco.
-- **Reordenar** arrastando, **arquivar** (some dos formulários, mantém o histórico) e **mesclar ao apagar** (move os lançamentos e as palavras-chave para outra categoria, com "Desfazer").
+- **Front-end:** React 19, TypeScript, Vite, React Router, `lucide-react`, PWA com `vite-plugin-pwa` (Workbox).
+- **Back-end:** Supabase (Postgres, Auth por e-mail e senha, RLS, gatilhos SQL). Sem servidor próprio.
+- **Hospedagem:** Vercel. **Automação:** GitHub Actions (keep-alive diário).
+- **Testes:** Vitest, PGlite, Playwright, axe-core.
 
-<br clear="right" />
-
-## Cartões e faturas
-
-- Fechamento, vencimento e **fatura mensal** correta para cada compra, inclusive parcelas em faturas futuras.
-- **Pagar fatura** em um toque, com fatura vencida destacada.
-- O limite vira um **cartão visual** na cor da conta: disponível em destaque, barra de uso, limite e dias de fechamento e vencimento.
-
-## Telas
-
-| Início | Extrato | Orçamento | Escuro |
-|:--:|:--:|:--:|:--:|
-| <img src="docs/img/inicio-light.png" width="170" /> | <img src="docs/img/extrato-light.png" width="170" /> | <img src="docs/img/orcamento-light.png" width="170" /> | <img src="docs/img/inicio-dark.png" width="170" /> |
-
-Responsivo: barra inferior no celular, janelas centralizadas no tablet e menu lateral com duas colunas no computador (≥ 1024 px).
-Atalhos no computador: `N` novo lançamento · `/` buscar · `Esc` fecha janelas.
-
-## Acesso e cadastro
-
-O acesso é controlado no banco. Há três jeitos de uma pessoa criar conta (detalhes em [docs/SETUP.md](docs/SETUP.md)):
-
-1. **Cadastro aberto:** `update public.app_settings set open_signup = true;` e qualquer pessoa com o endereço cria conta. Para fechar de novo, `false`.
-2. **Link de convite:** `…/?convite=CODIGO`, com códigos em `invite_codes` (cortar = `active = false`).
-3. **Lista de e-mails:** só e-mails em `allowed_emails` criam conta.
-
-## Tecnologia
-
-- **Interface:** React 19, TypeScript, Vite, `lucide-react`; PWA com `vite-plugin-pwa` (atualização segura, só recarrega quando não há nada a perder).
-- **Dados:** Supabase (Postgres, login por e-mail e senha, regras de segurança por linha); cópia local em IndexedDB para abrir na hora; **modo demonstração** local, sem servidor.
-- **Hospedagem:** Vercel (com política de segurança de conteúdo e cabeçalhos restritos em `vercel.json`).
-- **Testes:** Vitest (lógica), PGlite (schema e regras de acesso do SQL), Playwright (interface) e axe-core (acessibilidade).
-
-## Rodar e configurar
-
-Passo a passo completo do Supabase, do Vercel e da instalação no iPhone em **[docs/SETUP.md](docs/SETUP.md)**.
+## Rodar localmente
 
 ```bash
 npm install
-npm run dev        # sem .env.local roda em modo demonstração; use /?demo para dados de exemplo
-npm run build
+npm run dev          # sem .env.local roda em modo demonstração; use /?demo para dados de exemplo
 ```
 
-Para conectar a um banco de verdade, crie `.env.local` com `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` (chave **anon/publishable**; nunca a `service_role`) e rode `supabase/schema.sql` no SQL Editor. O arquivo é idempotente: pode rodar de novo a cada atualização.
+Para conectar a um banco de verdade, crie `.env.local` com `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` (chave **anon/publishable**) e rode `supabase/schema.sql` no SQL Editor (o arquivo é idempotente). Passo a passo completo, com Vercel e instalação no iPhone, em **[docs/SETUP.md](docs/SETUP.md)**.
 
-## Qualidade e testes
+<details>
+<summary><b>Comandos de teste e qualidade</b></summary>
 
 ```bash
 npm run check          # tipos + testes da lógica + teste do schema SQL
-npm run test:schema    # schema e regras do banco num Postgres embutido
+npm run test:schema    # schema, gatilhos e regras do banco num Postgres embutido
 npm run qa:rls         # um usuário nunca enxerga os dados do outro
+
+# precisam de um Chromium (CHROMIUM_PATH=/caminho/do/chrome) e do app em http://localhost:4173
+npm run build && npx vite preview --port 4173
+node scripts/e2e.mjs                 # ponta a ponta
+node scripts/qa/a11y.mjs             # acessibilidade (axe-core)
+npm run qa:layout && npm run qa:desktop
+npm run qa:perf                      # desempenho com milhares de lançamentos
+npm run qa:update                    # atualização automática do app
 ```
 
-Teste de interface e acessibilidade (precisam de um Chromium; `CHROMIUM_PATH=/caminho/do/chrome`):
+</details>
 
-```bash
-npm run build && npx vite preview --port 4173      # em um terminal
-node scripts/e2e.mjs                                # em outro: ~200 verificações de ponta a ponta
-node scripts/qa/a11y.mjs                            # axe-core em todas as telas, claro/escuro, celular/computador
-npm run qa:layout && npm run qa:desktop             # layout em vários tamanhos
-npm run qa:perf                                     # desempenho com milhares de lançamentos
-npm run qa:update                                   # atualização automática do app
-```
-
-A lógica financeira (saldos, faturas, parcelas, orçamento, previsão) é pura, testada em vários fusos horários (São Paulo, UTC, Auckland, Kolkata, Honolulu).
-
-## Estrutura do projeto
+## Estrutura
 
 ```
 src/
   lib/       lógica financeira pura e testada (saldos, faturas, parcelas, orçamento, previsão,
              campo rápido, recorrências, sugestões, regras de categoria, avisos)
-  data/      camada de dados: Supabase e modo demo local, com a mesma interface
+  data/      camada de dados: Supabase e modo demo, com a mesma interface
   pages/     telas (Início, Extrato, Orçamento, Insights, Contas, Categorias…)
   ui/        componentes (editores, folhas, gráficos, campo de valor, busca…)
-supabase/    schema.sql (tabelas, RLS, gatilhos) e seed de e-mails
-scripts/     testes de interface, acessibilidade, desempenho, geração de ícones
-docs/        SETUP.md (configuração) e IDEIAS.md (o que ficou para depois)
-.github/     rotina diária que evita a pausa do projeto gratuito do Supabase
+supabase/    schema.sql (tabelas, RLS, gatilhos)
+scripts/     testes de interface, acessibilidade, desempenho e geração de ícones
+docs/        configuração (SETUP.md) e ideias futuras (IDEIAS.md)
 ```
 
-## Privacidade e segurança
+## Próximos passos
 
-- **Dados separados por pessoa** por regras no banco (RLS), com teste automático (`qa:rls`).
-- **Sem chave de administrador no app:** só a chave pública (`anon`); a `service_role` nunca é usada.
-- **Sem IA e sem rastreadores:** nada sai do seu banco; o app não chama serviços de terceiros além do Supabase.
-- **Seus dados são seus:** exportação em CSV e backup em JSON em **Mais → Seus dados**; o Bolso nunca apaga nada por conta própria.
-- Política de segurança de conteúdo restritiva e cabeçalhos de proteção (`vercel.json`).
+Lançamento por voz, notificações push com o app fechado e logos de bancos estão em [docs/IDEIAS.md](docs/IDEIAS.md).
+Para ter o app nas lojas, o caminho é empacotar o mesmo código com Capacitor, sem reescrever nada.
 
-## Ideias para depois
+## English summary
 
-Lançamento por voz, notificações push com o app fechado e logos de bancos estão anotados em [docs/IDEIAS.md](docs/IDEIAS.md). O caminho para app nativo (Capacitor, mantendo o PWA como está) fica para quando fizer falta.
+<details>
+<summary><b>What is Bolso?</b></summary>
+
+**Bolso** is a free, private, installable (PWA) personal-finance app built with **React 19, TypeScript, Vite and Supabase (Postgres + RLS)**, hosted on Vercel's free tier.
+
+- **Rule-based quick entry (no AI):** typing a line like `50 mercado` creates categorized transactions, installments and dated entries; it learns keywords and supports per-keyword default amounts.
+- **Credit cards done right:** closing/due dates, per-month invoices (including future installments), invoice payment and limit tracking.
+- **Budgets with pace**, end-of-month forecast, tag/category insights and recurring bills.
+- **Engineering focus:** Row Level Security tested against other users and anonymous access; business rules enforced by Postgres triggers; pure, timezone-tested finance logic; IndexedDB cache for instant startup; safe service-worker updates; axe-core accessibility audit with 0 violations; Playwright end-to-end suite.
+- **Try it:** [bolso-delta.vercel.app/?demo](https://bolso-delta.vercel.app/?demo) runs entirely in your browser with sample data, no account needed.
+
+</details>
 
 ---
 
 <div align="center">
-Feito com cuidado para o dia a dia de quem quer enxergar o próprio dinheiro.
+
+Feito com cuidado por [@miguelquintanilhapy](https://github.com/miguelquintanilhapy)
+
 </div>
