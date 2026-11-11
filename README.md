@@ -163,7 +163,6 @@
 
 </div>
 
-Responsivo: barra colada no rodapé no celular e no tablet, menu lateral com duas colunas no computador. Atalhos no computador: `N` novo lançamento · `/` buscar · `Esc` fecha janelas.
 
 ---
 
