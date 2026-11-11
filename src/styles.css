@@ -979,3 +979,17 @@ kbd { font-size: 11px; }
 .item.notif .main small.notif-when { font-size: 12.5px; margin-top: 6px; color: var(--muted); }
 .item.notif .trash { align-self: center; margin: -6px -2px -6px 0; padding: 8px; border-radius: 50%; }
 .item.notif .trash:active { background: var(--card-2); }
+
+/* Barra inferior colada no rodapé (celular e tablet), sem folga embaixo: o fundo vai até a borda e cobre a área do indicador do iPhone */
+@media (max-width: 1023.98px) {
+  .nav {
+    --pad: max(8px, calc((100% - 520px) / 2));
+    left: 0; right: 0; bottom: 0; transform: none; width: auto; height: auto;
+    border-radius: 22px 22px 0 0;
+    padding: 6px var(--pad) calc(6px + env(safe-area-inset-bottom));
+    grid-auto-rows: 56px; box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.18);
+  }
+  .nav-pill { left: var(--pad); width: calc((100% - 2 * var(--pad)) / 5); bottom: calc(6px + env(safe-area-inset-bottom)); }
+  .app { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+  .toasts, .fab { bottom: calc(84px + env(safe-area-inset-bottom)); }
+}
