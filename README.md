@@ -22,7 +22,6 @@
 [⚡ Campo rápido](#-campo-rápido) &nbsp;·&nbsp;
 [🧱 Arquitetura](#-como-funciona-por-baixo) &nbsp;·&nbsp;
 [🚀 Como rodar](#-como-rodar) &nbsp;·&nbsp;
-[🇺🇸 English](#-english-summary)
 
 </div>
 
