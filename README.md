@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/img/banner.png" alt="Bolso: seu dinheiro sob controle em uma linha" width="100%" />
+<img src="docs/img/banner-v2.png" alt="Bolso: seu dinheiro sob controle em uma linha" width="100%" />
 
 <br />
 
