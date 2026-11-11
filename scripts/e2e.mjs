@@ -874,7 +874,7 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   const tab = await (await browser.newContext({ viewport: { width: 768, height: 1024 } })).newPage();
   await tab.goto(`${url}/?demo`); await tab.waitForSelector('.hero'); await tab.waitForTimeout(1000);
   const tn = await tab.locator('nav.nav').boundingBox();
-  check('tablet: continua a barra inferior (não o menu lateral)', tn.y > 900 && tn.width < 500, JSON.stringify(tn));
+  check('tablet: continua a barra inferior (não o menu lateral)', tn.y > 900 && tn.height < 100 && tn.x === 0 && Math.round(tn.y + tn.height) === 1024, JSON.stringify(tn));
   check('tablet: sem rolagem lateral', (await tab.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)) === 0);
 }
 
