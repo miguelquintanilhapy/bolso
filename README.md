@@ -19,7 +19,7 @@ PWA instalável no celular · sem anúncios · sem IA · dados separados por pes
 ![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
 ![PWA](https://img.shields.io/badge/PWA-5a0fc8?style=for-the-badge&logo=pwa&logoColor=white)
 
-**[▶ Experimentar agora (sem criar conta)](https://bolso-delta.vercel.app/?demo)** &nbsp;·&nbsp; [Configuração](docs/SETUP.md) &nbsp;·&nbsp; [Arquitetura](#arquitetura) &nbsp;·&nbsp; [English](#english-summary)
+**[▶ Experimentar agora (sem criar conta)](https://bolso-delta.vercel.app/?demo)** &nbsp;·&nbsp; [Configuração](docs/SETUP.md) &nbsp;·&nbsp; [Como funciona](#como-é-no-dia-a-dia) &nbsp;·&nbsp; [English](#english-summary)
 
 <br />
 
@@ -66,55 +66,26 @@ e tudo roda nos **planos gratuitos** do Supabase e da Vercel.
 Abra **[bolso-delta.vercel.app/?demo](https://bolso-delta.vercel.app/?demo)**: o modo demonstração roda inteiro no seu navegador, com dados de exemplo e **sem enviar nada a servidor**.
 Digite `45 almoço` no campo do topo, deslize uma linha para pagar ou apagar, abra um cartão e olhe o orçamento.
 
-## Arquitetura
+## Como é no dia a dia
 
-```mermaid
-flowchart LR
-  UI["Interface React<br/>pages · ui"] --> Store["Store<br/>estado e regras de UX"]
-  Store --> Lib["lib/<br/>lógica financeira pura e testada"]
-  Store --> Db{{"Interface Db"}}
-  Db --> SB[("Supabase<br/>Postgres + RLS")]
-  Db --> Demo[("Modo demo<br/>local, sem servidor")]
-  Store --> Cache[("IndexedDB<br/>cópia local")]
-  UI -.-> SW["Service Worker<br/>atualização segura"]
-```
+1. **Você digita** `45 almoço` (ou toca no cartão e digita `480 vr`).
+2. **O Bolso entende:** valor, categoria, conta, data e parcelas, sem formulário.
+3. **Você enxerga:** o orçamento reage, o previsto do mês se atualiza e o cartão mostra o limite que sobrou.
 
-- **Camada de dados com uma só interface** (`Db`): o mesmo app roda contra o Supabase ou contra um modo demonstração local, o que também torna os testes de interface rápidos e determinísticos.
-- **Lógica financeira pura** em `src/lib/` (saldos, faturas, parcelas, orçamento, previsão, campo rápido, recorrências, sugestões): sem React, sem I/O, fácil de testar.
-- **O banco é a fonte de verdade das regras de segurança:** RLS por usuário e gatilhos no Postgres, não confiança no cliente.
+Sem planilha, sem fricção, sem ninguém olhando seus dados.
 
-## Decisões de engenharia
+## Privado de verdade
 
-| Desafio | Como foi resolvido |
-|---|---|
-| Cada pessoa nunca pode ver os dados da outra | **Row Level Security** em todas as tabelas, com um teste automático que tenta ler como outro usuário e como anônimo. |
-| Regras que o app não pode burlar | **Gatilhos e *constraints* no Postgres**: categorias permitidas por conta, transferência válida, formato de horário, controle de cadastro. Testados num Postgres embutido (PGlite). |
-| Dinheiro e datas sem surpresa | Valores sempre arredondados em duas casas, do mesmo jeito em toda a lógica; **testes rodados em 5 fusos horários** (São Paulo, UTC, Auckland, Kolkata, Honolulu) para pegar erro de data. |
-| Fatura do cartão correta | Cada compra cai na fatura do mês certo conforme fechamento e vencimento, inclusive parcelas; índice em cache evita recalcular. |
-| Abrir rápido com muitos dados | Cache local em **IndexedDB** (a tela aparece antes do servidor responder), Extrato paginado e verificação de desempenho com **milhares de lançamentos**. |
-| Atualizar o app sem atrapalhar quem está usando | Service Worker com atualização controlada: só recarrega quando é seguro (sem nada em edição), para nunca perder um lançamento a meio. |
-| Campo de texto que entende o dia a dia | *Parser* por regras (valor, data, parcelas, conta, tags, palavra-chave), com aprendizado de palavras e valor padrão, **sem depender de IA**. |
-| Acessível de verdade | **axe-core** em todas as telas, claro e escuro, celular e computador: 0 violações; nomes acessíveis, navegação por teclado e respeito a "reduzir movimento". |
-| Custo zero | Planos gratuitos + rotina diária no GitHub Actions que evita a pausa do projeto no Supabase. |
+- **Seus dados são só seus:** cada pessoa enxerga apenas o que lançou, e isso é garantido pelo próprio banco.
+- **Sem anúncios, sem rastreadores e sem IA:** nada sai do seu banco para serviços de terceiros.
+- **Leve para levar:** exporta tudo em CSV e JSON quando quiser, e o Bolso nunca apaga nada por conta própria.
+- **Funciona onde você está:** celular, tablet e computador, em claro e escuro.
 
-## Qualidade em números
+## Feito com
 
-| | |
-|---|---|
-| Testes unitários da lógica | **140+**, em 5 fusos horários |
-| Testes do banco (schema, RLS, gatilhos) | **50+** verificações num Postgres embutido |
-| Testes de interface ponta a ponta | **~200** verificações com Playwright |
-| Acessibilidade (axe-core) | **0** violações nas telas principais |
-| Segurança | Sem chave de administrador no app; CSP restritiva e cabeçalhos de proteção em `vercel.json` |
+React 19 · TypeScript · Vite · Supabase (Postgres) · Vercel · PWA
 
-## Stack
-
-- **Front-end:** React 19, TypeScript, Vite, React Router, `lucide-react`, PWA com `vite-plugin-pwa` (Workbox).
-- **Back-end:** Supabase (Postgres, Auth por e-mail e senha, RLS, gatilhos SQL). Sem servidor próprio.
-- **Hospedagem:** Vercel. **Automação:** GitHub Actions (keep-alive diário).
-- **Testes:** Vitest, PGlite, Playwright, axe-core.
-
-## Rodar localmente
+## Para quem quer rodar o projeto
 
 ```bash
 npm install
@@ -142,7 +113,8 @@ npm run qa:update                    # atualização automática do app
 
 </details>
 
-## Estrutura
+<details>
+<summary><b>Estrutura do código</b></summary>
 
 ```
 src/
@@ -156,7 +128,9 @@ scripts/     testes de interface, acessibilidade, desempenho e geração de íco
 docs/        configuração (SETUP.md) e ideias futuras (IDEIAS.md)
 ```
 
-## Próximos passos
+</details>
+
+## O que vem por aí
 
 Lançamento por voz, notificações push com o app fechado e logos de bancos estão em [docs/IDEIAS.md](docs/IDEIAS.md).
 Para ter o app nas lojas, o caminho é empacotar o mesmo código com Capacitor, sem reescrever nada.
@@ -171,7 +145,8 @@ Para ter o app nas lojas, o caminho é empacotar o mesmo código com Capacitor, 
 - **Rule-based quick entry (no AI):** typing a line like `50 mercado` creates categorized transactions, installments and dated entries; it learns keywords and supports per-keyword default amounts.
 - **Credit cards done right:** closing/due dates, per-month invoices (including future installments), invoice payment and limit tracking.
 - **Budgets with pace**, end-of-month forecast, tag/category insights and recurring bills.
-- **Engineering focus:** Row Level Security tested against other users and anonymous access; business rules enforced by Postgres triggers; pure, timezone-tested finance logic; IndexedDB cache for instant startup; safe service-worker updates; axe-core accessibility audit with 0 violations; Playwright end-to-end suite.
+- **Private by design:** each person only ever sees their own data, enforced at the database level; no ads, no trackers, no AI.
+- **Feels like an app:** installs to the home screen, opens instantly, works in light and dark mode, exports your data any time.
 - **Try it:** [bolso-delta.vercel.app/?demo](https://bolso-delta.vercel.app/?demo) runs entirely in your browser with sample data, no account needed.
 
 </details>
