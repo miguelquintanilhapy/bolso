@@ -1,6 +1,9 @@
 <div align="center">
 
-<img src="public/logo.png" alt="Bolso" width="180" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="public/logo-white.png">
+  <img src="public/logo.png" alt="Bolso" width="180">
+</picture>
 
 **Seu controle financeiro, só seu.**
 
