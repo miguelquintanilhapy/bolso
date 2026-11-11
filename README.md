@@ -19,7 +19,7 @@ PWA instalável no celular · sem anúncios · sem IA · dados separados por pes
 ![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
 ![PWA](https://img.shields.io/badge/PWA-5a0fc8?style=for-the-badge&logo=pwa&logoColor=white)
 
-**[▶ Experimentar agora (sem criar conta)](https://bolso-delta.vercel.app/?demo)** &nbsp;·&nbsp; [Configuração](docs/SETUP.md) &nbsp;·&nbsp; [Como funciona](#como-é-no-dia-a-dia) &nbsp;·&nbsp; [English](#english-summary)
+**[▶ Experimentar agora (sem criar conta)](https://bolso-delta.vercel.app/?demo)** &nbsp;·&nbsp; [Configuração](docs/SETUP.md) &nbsp;·&nbsp; [Como funciona](#como-é-no-dia-a-dia) 
 
 <br />
 
@@ -135,26 +135,11 @@ docs/        configuração (SETUP.md) e ideias futuras (IDEIAS.md)
 Lançamento por voz, notificações push com o app fechado e logos de bancos estão em [docs/IDEIAS.md](docs/IDEIAS.md).
 Para ter o app nas lojas, o caminho é empacotar o mesmo código com Capacitor, sem reescrever nada.
 
-## English summary
-
-<details>
-<summary><b>What is Bolso?</b></summary>
-
-**Bolso** is a free, private, installable (PWA) personal-finance app built with **React 19, TypeScript, Vite and Supabase (Postgres + RLS)**, hosted on Vercel's free tier.
-
-- **Rule-based quick entry (no AI):** typing a line like `50 mercado` creates categorized transactions, installments and dated entries; it learns keywords and supports per-keyword default amounts.
-- **Credit cards done right:** closing/due dates, per-month invoices (including future installments), invoice payment and limit tracking.
-- **Budgets with pace**, end-of-month forecast, tag/category insights and recurring bills.
-- **Private by design:** each person only ever sees their own data, enforced at the database level; no ads, no trackers, no AI.
-- **Feels like an app:** installs to the home screen, opens instantly, works in light and dark mode, exports your data any time.
-- **Try it:** [bolso-delta.vercel.app/?demo](https://bolso-delta.vercel.app/?demo) runs entirely in your browser with sample data, no account needed.
-
-</details>
 
 ---
 
 <div align="center">
 
-Feito com cuidado por [@miguelquintanilhapy](https://github.com/miguelquintanilhapy)
+Feito por [@miguelquintanilhapy](https://github.com/miguelquintanilhapy)
 
 </div>
