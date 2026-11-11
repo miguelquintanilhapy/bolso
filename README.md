@@ -14,11 +14,6 @@
 ![Supabase](https://img.shields.io/badge/SUPABASE-POSTGRES-3ecf8e?style=for-the-badge&logo=supabase&logoColor=white)
 ![Vercel](https://img.shields.io/badge/VERCEL-DEPLOY-000000?style=for-the-badge&logo=vercel&logoColor=white)
 
-![Custo](https://img.shields.io/badge/custo-R$%200-2f9e5b?style=flat-square)
-![IA](https://img.shields.io/badge/IA-nenhuma-6b7280?style=flat-square)
-![Privacidade](https://img.shields.io/badge/dados-só%20seus-2a78d6?style=flat-square)
-![Tema](https://img.shields.io/badge/tema-claro%20%2B%20escuro-111214?style=flat-square)
-
 <br />
 
 [▶️ **Experimentar agora**](https://bolso-delta.vercel.app/?demo) &nbsp;·&nbsp;
