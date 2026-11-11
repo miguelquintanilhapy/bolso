@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/img/banner-v2.png" alt="Bolso: seu dinheiro sob controle em uma linha" width="100%" />
+<img src="docs/img/banner-v3.png" alt="Bolso: seu dinheiro sob controle em uma linha" width="100%" />
 
 <br />
 
@@ -243,7 +243,7 @@ docs/        configuração (SETUP.md) e ideias futuras (IDEIAS.md)
 
 <div align="center">
 
-<img src="https://skillicons.dev/icons?i=react,ts,vite,supabase,postgres,vercel,github,playwright,vitest&theme=dark" alt="Tecnologias" />
+<img src="https://skillicons.dev/icons?i=react,ts,vite,supabase,postgres,vercel,github,vitest&theme=dark" alt="Tecnologias" />
 
 </div>
 
