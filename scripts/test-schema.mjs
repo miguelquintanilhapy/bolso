@@ -17,7 +17,7 @@ const rejects = async (sql) => { try { await db.exec(sql); return false; } catch
 
 check('cadastro bloqueado fora da lista', await rejects("insert into auth.users (email) values ('x@x.com')"));
 await db.exec(readFileSync('supabase/seed_allowed_emails.sql', 'utf8'));
-check('cadastro liberado na lista (case-insensitive)', !(await rejects("insert into auth.users (email) values ('MiguelQuintanilha61@Gmail.com')")));
+check('cadastro liberado na lista (case-insensitive)', !(await rejects("insert into auth.users (email) values ('Voce@Exemplo.com')")));
 
 // convite por link: o código vem em raw_user_meta_data.invite
 await db.exec("insert into public.invite_codes (code) values ('Amigos-2026'), ('velho')");
@@ -25,7 +25,7 @@ check('convite: código errado ou ausente continua bloqueado', await rejects(`in
 check('convite: código válido libera qualquer e-mail (sem diferenciar maiúsculas)', !(await rejects(`insert into auth.users (email, raw_user_meta_data) values ('novo@x.com', '{"invite":"  amigos-2026 "}')`)));
 await db.exec("update public.invite_codes set active = false where code = 'velho'");
 check('convite: código desativado deixa de valer', await rejects(`insert into auth.users (email, raw_user_meta_data) values ('n3@x.com', '{"invite":"velho"}')`));
-check('convite: a lista de e-mails continua valendo sem código', !(await rejects("insert into auth.users (email) values ('miguelquintanilha61@gmail.com')")));
+check('convite: a lista de e-mails continua valendo sem código', !(await rejects("insert into auth.users (email) values ('voce@exemplo.com')")));
 
 // interruptor de cadastro aberto
 await db.exec('update public.app_settings set open_signup = true');
@@ -33,7 +33,7 @@ check('cadastro aberto: qualquer e-mail cria conta, sem convite', !(await reject
 await db.exec('update public.app_settings set open_signup = false');
 check('cadastro fechado de novo: volta a bloquear', await rejects("insert into auth.users (email) values ('outro@x.com')"));
 
-const uid = (await db.query("select id from auth.users where email ilike 'miguelquintanilha61@gmail.com' limit 1")).rows[0].id;
+const uid = (await db.query("select id from auth.users where email ilike 'voce@exemplo.com' limit 1")).rows[0].id;
 await db.exec(`set app.uid = '${uid}'`);
 await db.exec(`insert into accounts (name, kind) values ('Conta', 'checking'), ('Cartão', 'credit')`);
 const [a, b] = (await db.query('select id from accounts order by name')).rows.map((r) => r.id);
