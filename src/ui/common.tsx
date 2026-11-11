@@ -124,7 +124,7 @@ export function TxRow({ tx, accounts, categories, onClick, showDate, hideAccount
         <b className={income ? 'green' : ''}><Money value={income ? tx.amount : transfer ? tx.amount : -tx.amount} signed={income} /></b>
         {!pending && when && (when.typed
           ? <small className="when" title="Horário informado">{when.time}</small>
-          : <small className="when reg" title={`Hora do registro: lançado em ${launch?.full}`}>{launch?.sameDay ? `reg. ${when.time}` : `lançado ${launch?.dm} ${when.time}`}</small>)}
+          : <small className="when reg" title={`Hora do registro: lançado em ${launch?.full}`}>{launch?.sameDay ? `reg. ${when.time}` : `${launch?.dm} ${when.time}`}</small>)}
         {pending && (
           <button className={`pay-btn ${income ? 'in' : 'out'}`} aria-label={`${income ? 'Receber' : transfer ? 'Confirmar' : 'Pagar'}: ${title}`}
             onClick={(e) => { e.stopPropagation(); void markPaid(tx); }}>
