@@ -147,19 +147,9 @@
 
 <div align="center">
 
-| Início | Extrato | Orçamento | Cartão |
+| Início | Orçamento | Cartão | Modo escuro |
 |:--:|:--:|:--:|:--:|
-| <img src="docs/img/inicio-light.png" width="200" /> | <img src="docs/img/extrato-light.png" width="200" /> | <img src="docs/img/orcamento-light.png" width="200" /> | <img src="docs/img/cartao-light.png" width="200" /> |
-
-| Insights | Categorias | Notificações | Recorrências |
-|:--:|:--:|:--:|:--:|
-| <img src="docs/img/insights-light.png" width="200" /> | <img src="docs/img/categorias-light.png" width="200" /> | <img src="docs/img/notificacoes-light.png" width="200" /> | <img src="docs/img/recorrencias-light.png" width="200" /> |
-
-**🌙 Modo escuro**
-
-| Início | Extrato | Orçamento | Cartão |
-|:--:|:--:|:--:|:--:|
-| <img src="docs/img/inicio-dark.png" width="200" /> | <img src="docs/img/extrato-dark.png" width="200" /> | <img src="docs/img/orcamento-dark.png" width="200" /> | <img src="docs/img/cartao-dark.png" width="200" /> |
+| <img src="docs/img/inicio-light.png" width="200" /> | <img src="docs/img/orcamento-light.png" width="200" /> | <img src="docs/img/cartao-light.png" width="200" /> | <img src="docs/img/inicio-dark.png" width="200" /> |
 
 </div>
 
