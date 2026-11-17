@@ -834,6 +834,23 @@ check('sair da conta apaga os dados da cópia local (nenhum lançamento/conta so
   check('apagar com uso: lançamentos vão para a outra categoria', (await mp.locator('.item').count()) === lazerCount - 1 && /Compras/.test(await mp.locator('.toast').first().innerText()));
   await mp.click('.toast button:has-text("Desfazer")'); await mp.waitForTimeout(600);
   check('apagar com uso: desfazer devolve a categoria', (await mp.locator('.item').count()) === lazerCount);
+
+  // logos dos bancos: marca embutida (Nubank), ícone do site (VR) com fallback, e interruptor em Mais
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==', 'base64');
+  await mp.route('**/s2/favicons**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
+  await go('/'); await mp.waitForSelector('.hero'); await mp.waitForTimeout(500);
+  check('logos: a conta Nubank mostra a marca embutida (SVG, sem rede)', (await mp.locator('.quick-accounts [data-logo="nubank"] svg').count()) === 2);
+  await go('/contas'); await mp.waitForSelector('.item, .acc-card'); await mp.waitForTimeout(500);
+  check('logos: marca sem SVG embutido (VR) usa o ícone do site', (await mp.locator('[data-logo="vr"] img').count()) > 0);
+  await mp.unroute('**/s2/favicons**');
+  await mp.route('**/s2/favicons**', (r) => r.abort());
+  await go('/'); await go('/contas'); await mp.waitForSelector('.item, .acc-card'); await mp.waitForTimeout(900);
+  check('logos: se o ícone do site não carrega, volta ao ícone do tipo da conta', (await mp.locator('[data-logo="vr"]').count()) === 0 && (await mp.locator('.item:has-text("VR") .acc-ico svg').count()) > 0);
+  await go('/mais'); await mp.waitForSelector('button[aria-label="Logos dos bancos"]');
+  await mp.click('button[aria-label="Logos dos bancos"]');
+  await go('/'); await mp.waitForSelector('.hero'); await mp.waitForTimeout(400);
+  check('logos: desligar em Mais volta aos ícones de sempre', (await mp.locator('[data-logo]').count()) === 0);
+  await go('/mais'); await mp.click('button[aria-label="Logos dos bancos"]');
   await mctx.close();
 }
 

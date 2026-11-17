@@ -10,6 +10,7 @@ import { amountError, compactBRL, formatBRL, parseAmount, round2, splitBRL, type
 import { parseQuickEntry } from './quickEntry';
 import { BANK_TEMPLATES, templateName } from './bankTemplates';
 import { moveItem, orderedCategories, suggestKeywords } from './suggestions';
+import { findBrand, faviconUrl } from './brands';
 import { planRecurrences } from './recurrence';
 import { transactionsToCSV } from './exports';
 
@@ -501,5 +502,26 @@ describe('recorrências: receitas fixas', () => {
     const list = [r({ kind: 'income', amount: 3000 }), r({ kind: 'income', amount: 500, active: false }), r({ amount: 800 })];
     expect(monthlyIncome(list)).toBe(3000);
     expect(monthlyCommitted(list)).toBe(800);
+  });
+});
+
+describe('marca pelo nome da conta (logos)', () => {
+  it('reconhece a marca por palavra inteira, sem acento e sem diferenciar maiúsculas', () => {
+    expect(findBrand('Nubank Cartão')?.id).toBe('nubank');
+    expect(findBrand('ITAÚ Personnalité')?.id).toBe('itau');
+    expect(findBrand('Conta C6')?.id).toBe('c6');
+    expect(findBrand('Minha VR Refeição')?.id).toBe('vr');
+    expect(findBrand('Banco do Brasil')?.id).toBe('bb');
+    expect(findBrand('BB')?.id).toBe('bb');
+    expect(findBrand('Pluxee')?.id).toBe('sodexo');
+  });
+  it('não confunde palavras parecidas nem nomes comuns', () => {
+    expect(findBrand('Internet')).toBeNull();
+    expect(findBrand('Carteira')).toBeNull();
+    expect(findBrand('Tesouro Direto')).toBeNull();
+    expect(findBrand('')).toBeNull();
+  });
+  it('monta a URL do ícone do site com o domínio codificado', () => {
+    expect(faviconUrl('itau.com.br')).toBe('https://www.google.com/s2/favicons?domain=itau.com.br&sz=128');
   });
 });
