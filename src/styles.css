@@ -993,3 +993,5 @@ kbd { font-size: 11px; }
   .app { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
   .toasts, .fab { bottom: calc(84px + env(safe-area-inset-bottom)); }
 }
+
+.acc-ico-img img { display: block; border-radius: 22%; object-fit: contain; }

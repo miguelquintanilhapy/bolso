@@ -15,7 +15,10 @@ Avisos no celular mesmo com o app fechado (fatura vencendo, orçamento estourand
 - iPhone: só funciona com o app instalado na tela de início (iOS 16.4 ou mais novo). Android/Chrome funciona direto.
 - Reaproveitar `planNotifications` (já decide o que avisar) e a deduplicação por `dedupe_key`.
 
-## 3. API de logos
-Mostrar a logo do banco/cartão/estabelecimento no lugar do ícone genérico (Nubank, Itaú, Swile, iFood…).
-- Onde: contas e cartões (hoje ícone + cor), e talvez a linha de cada lançamento pelo nome do estabelecimento.
-- Avaliar serviços de logos (custo, limites, termos de uso e se ainda existem gratuitos) e os efeitos: a política de segurança (`img-src` no `vercel.json`) precisa liberar o domínio; imagens externas vazam quais lugares a pessoa usa, então considerar baixar e guardar uma cópia ou usar um conjunto fixo de bancos brasileiros.
+## 3. Logos de bancos (feito)
+Feito: a conta ganha a logo do banco pelo nome ("Nubank Cartão", "Itaú"…).
+- Nubank, PicPay e Mercado Pago vêm embutidos no app (`simple-icons`, SVG, sem rede). As demais marcas usam o ícone do site do banco (Google), com cache do navegador.
+- Se não carregar (offline, bloqueado), cai no ícone do tipo da conta.
+- Dá para desligar em **Mais → Logos dos bancos**; desligado, nada é buscado.
+- A política de segurança (`img-src` em `vercel.json`) libera só `www.google.com` e `*.gstatic.com` para imagens.
+- Ideia futura: embutir mais marcas (Itaú, Inter, C6, Bradesco…) para não depender de rede, e baixar o ícone do site uma vez e guardá-lo no aparelho.

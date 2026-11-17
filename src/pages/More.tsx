@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Bell, ChevronRight, Download, Smartphone, Eye, FileJson, Landmark, LogOut, Palette, Pencil, Repeat, Tags, ListChecks } from 'lucide-react';
+import { Bell, ChevronRight, Download, Smartphone, Eye, FileJson, Landmark, LogOut, Palette, Pencil, Repeat, Tags, ListChecks, Image } from 'lucide-react';
 import { useStore } from '../store';
 import { Segmented, Switch } from '../ui/common';
 import { usePrivacy } from '../ui/privacy';
@@ -8,6 +8,7 @@ import { ModalSheet } from '../ui/Sheet';
 import { INSTALL_STEPS, useInstall } from '../lib/install';
 import { getName, setName } from '../lib/profile';
 import { download, transactionsToCSV } from '../lib/exports';
+import { logosEnabled, setLogosEnabled } from '../lib/brands';
 import { todayISO } from '../lib/dates';
 
 type Theme = 'auto' | 'light' | 'dark';
@@ -29,6 +30,7 @@ export function More() {
   const [editName, setEditName] = useState(false);
   const [draft, setDraft] = useState('');
   const [adv, setAdv] = useState(false);
+  const [logos, setLogos] = useState(logosEnabled);
   const { mode: installMode, install } = useInstall();
   const [installHelp, setInstallHelp] = useState(false);
   const saveName = () => { setName(draft); setNameState(getName(s.user.email)); setEditName(false); s.toast('Nome atualizado'); };
@@ -86,6 +88,8 @@ export function More() {
       <span className="group-title">Preferências</span>
       <div className="group">
         <div className="item"><span className="ico"><Eye size={19} /></span><span className="main"><b>Ocultar valores</b><small>Esconde saldos e valores</small></span><Switch checked={hidden} onChange={toggle} label="Ocultar valores" /></div>
+        <div className="item"><span className="ico"><Image size={19} /></span><span className="main"><b>Logos dos bancos</b><small>Mostra a logo na conta. Para alguns bancos, busca o ícone do site (Google)</small></span>
+          <Switch checked={logos} onChange={(v) => { setLogos(v); setLogosEnabled(v); }} label="Logos dos bancos" /></div>
         <button className="item" onClick={() => {
           try { localStorage.removeItem('bolso:steps-off'); localStorage.removeItem('bolso:install-off'); localStorage.setItem('bolso:steps-force', '1'); } catch { /* sem armazenamento */ }
           nav('/');

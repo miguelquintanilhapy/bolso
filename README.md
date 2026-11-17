@@ -126,6 +126,7 @@
 - **Atualiza sozinho**, sem atrapalhar o que você está fazendo
 - Barra inferior no celular, menu lateral no computador
 - Deslizar a linha para **pagar** ou **apagar**
+- **Logo do banco** na conta e no cartão (Nubank, Itaú, Inter, C6, VR…)
 
 </td>
 <td width="50%" valign="top">
@@ -135,6 +136,7 @@
 - Sem anúncios, sem rastreadores, **sem IA**
 - **Ocultar valores** com um toque
 - Exporta tudo em **CSV** e **JSON**
+- **Logos dos bancos** com opção de desligar (para alguns bancos o ícone vem do site deles)
 
 </td>
 </tr>
